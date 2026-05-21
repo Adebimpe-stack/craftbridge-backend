@@ -1,8 +1,3 @@
-// =========================
-// server.js
-// FULL UPDATED CODE
-// =========================
-
 require("dotenv").config();
 
 const express = require("express");
@@ -17,13 +12,11 @@ const app = express();
    SECURITY
 ========================= */
 app.use(helmet());
-
 app.use(express.json());
-
 app.use(cookieParser());
 
 /* =========================
-   CORS
+   CORS CONFIG
 ========================= */
 app.use(
   cors({
@@ -33,46 +26,27 @@ app.use(
 );
 
 /* =========================
-   STATIC FILES
-========================= */
-app.use("/uploads", express.static("uploads"));
-
-/* =========================
-   ROUTES
+   MAIN ROUTES
 ========================= */
 app.use("/api/auth", require("./routes/auth"));
-
 app.use("/api/jobs", require("./routes/jobs"));
-
 app.use("/api/employer", require("./routes/employer"));
 
-app.use(
-  "/api/paystack",
-  require("./routes/paystackWebhook")
-);
+/* =========================
+   PAYMENT (PAYSTACK)
+========================= */
+app.use("/api/paystack", require("./routes/paystackWebhook"));
 
 /* =========================
    ADMIN ROUTES
 ========================= */
 app.use("/api/admin", require("./routes/admin"));
-
-app.use(
-  "/api/admin/users",
-  require("./routes/admin/users")
-);
-
-app.use(
-  "/api/admin/jobs",
-  require("./routes/admin/jobs")
-);
-
-app.use(
-  "/api/admin/applications",
-  require("./routes/admin/applications")
-);
+app.use("/api/admin/users", require("./routes/admin/users"));
+app.use("/api/admin/jobs", require("./routes/admin/jobs"));
+app.use("/api/admin/applications", require("./routes/admin/applications"));
 
 /* =========================
-   HOME
+   HOME ROUTE
 ========================= */
 app.get("/", (req, res) => {
   res.send("CraftBridge API running 🚀");
@@ -87,14 +61,13 @@ mongoose
   .catch((err) => console.log(err));
 
 /* =========================
-   CRON JOBS
+   CRON JOB (SUBSCRIPTION REMINDERS + AUTO DISABLE)
 ========================= */
 const subscriptionReminderJob = require("./jobs/subscriptionReminderJob");
-
 subscriptionReminderJob();
 
 /* =========================
-   SERVER
+   START SERVER
 ========================= */
 const PORT = process.env.PORT || 5000;
 

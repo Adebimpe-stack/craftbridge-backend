@@ -1,40 +1,58 @@
 const mongoose = require("mongoose");
 
+const applicationSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+
+  status: {
+    type: String,
+    enum: ["pending", "shortlisted", "rejected", "hired"],
+    default: "pending",
+  },
+
+  resume: {
+    type: String, // file URL or file path
+  },
+
+  appliedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const jobSchema = new mongoose.Schema(
   {
     title: {
       type: String,
       required: true,
     },
+
+    description: String,
+
     location: {
       type: String,
-      required: true,
+      default: "Remote",
     },
-    description: {
+
+    type: {
       type: String,
-      required: true,
+      default: "Full-time",
     },
 
-    salary: {
-      currency: {
-        type: String,
-        default: "NGN",
-      },
-      amount: Number,
+    status: {
+      type: String,
+      enum: ["active", "closed"],
+      default: "active",
     },
 
-    requirements: {
-      type: [String],
-      default: [],
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
 
-    // ✅ NEW: applicants list
-    applicants: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
+    applications: [applicationSchema],
   },
   { timestamps: true }
 );

@@ -1,15 +1,30 @@
+// =========================
+// models/Job.js
+// FULL UPDATED CODE
+// =========================
+
 const mongoose = require("mongoose");
 
-const applicantSchema = new mongoose.Schema({
+const applicationSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
+    required: true,
   },
 
   status: {
     type: String,
-    enum: ["pending", "accepted", "rejected"],
     default: "pending",
+  },
+
+  resume: {
+    type: String,
+    default: null,
+  },
+
+  appliedAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 
@@ -20,41 +35,27 @@ const jobSchema = new mongoose.Schema(
       required: true,
     },
 
-    location: {
-      type: String,
-      required: true,
-    },
-
     description: {
       type: String,
       required: true,
     },
 
-    requirements: {
-      type: Array,
-      default: [],
+    location: {
+      type: String,
+      required: true,
     },
 
-    employerId: {
+    type: {
+      type: String,
+      required: true,
+    },
+
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
 
-    employerEmail: {
-      type: String,
-    },
-
-    applicants: [applicantSchema],
-
-    // AUTO EXPIRY
-    expiresAt: {
-      type: Date,
-    },
-
-    expired: {
-      type: Boolean,
-      default: false,
-    },
+    applications: [applicationSchema],
   },
   { timestamps: true }
 );
