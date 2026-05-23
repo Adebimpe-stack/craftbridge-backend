@@ -57,4 +57,10 @@ const jobSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+companyId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Company"
+}
+);
+
 module.exports = mongoose.model("Job", jobSchema);

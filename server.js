@@ -1,103 +1,56 @@
-// =========================
-// server.js
-// FULL UPDATED CODE
-// =========================
-
-require("dotenv").config();
-
 const express = require("express");
 const mongoose = require("mongoose");
+const dotenv = require("dotenv");
 const cors = require("cors");
-const cookieParser = require("cookie-parser");
-const helmet = require("helmet");
+
+dotenv.config();
 
 const app = express();
 
-/* =========================
-   SECURITY
-========================= */
-app.use(helmet());
-
+// =========================
+// MIDDLEWARE
+// =========================
 app.use(express.json());
 
-app.use(cookieParser());
-
-/* =========================
-   CORS
-========================= */
 app.use(
   cors({
-    origin: "https://craftbridge-frontend.vercel.app",
+    origin: [
+      "https://craftbridge-frontend.vercel.app",
+      "http://localhost:5173",
+    ],
     credentials: true,
   })
 );
 
-/* =========================
-   STATIC FILES
-========================= */
-app.use("/uploads", express.static("uploads"));
-
-/* =========================
-   ROUTES
-========================= */
+// =========================
+// ROUTES
+// =========================
 app.use("/api/auth", require("./routes/auth"));
-
 app.use("/api/jobs", require("./routes/jobs"));
-
+app.use("/api/companies", require("./routes/companies"));
 app.use("/api/employer", require("./routes/employer"));
 
-app.use(
-  "/api/paystack",
-  require("./routes/paystackWebhook")
-);
-
-/* =========================
-   ADMIN ROUTES
-========================= */
-app.use("/api/admin", require("./routes/admin"));
-
-app.use(
-  "/api/admin/users",
-  require("./routes/admin/users")
-);
-
-app.use(
-  "/api/admin/jobs",
-  require("./routes/admin/jobs")
-);
-
-app.use(
-  "/api/admin/applications",
-  require("./routes/admin/applications")
-);
-
-/* =========================
-   HOME
-========================= */
+// =========================
+// TEST ROUTE
+// =========================
 app.get("/", (req, res) => {
-  res.send("CraftBridge API running 🚀");
+  res.send("CraftBridge API running...");
 });
 
-/* =========================
-   DATABASE
-========================= */
+// =========================
+// DB CONNECT
+// =========================
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .then(() => {
+    console.log("MongoDB Connected");
 
-/* =========================
-   CRON JOBS
-========================= */
-const subscriptionReminderJob = require("./jobs/subscriptionReminderJob");
-
-subscriptionReminderJob();
-
-/* =========================
-   SERVER
-========================= */
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, "0.0.0.0", () =>
-  console.log(`Server running on port ${PORT} 🚀`)
-);
+    app.listen(process.env.PORT || 5000, () => {
+      console.log(
+        `Server running on port ${process.env.PORT || 5000}`
+      );
+    });
+  })
+  .catch((err) => {
+    console.log(err);
+  });

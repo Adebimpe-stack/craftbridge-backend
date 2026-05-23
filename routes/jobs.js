@@ -52,7 +52,32 @@ router.post(
         createdBy: req.user.id,
         status: "active",
         applications: [],
+router.post(
+  "/",
+  auth,
+  role(["employer"]),
+  async (req, res) => {
+    try {
+      const job = await Job.create({
+        title: req.body.title,
+        description: req.body.description,
+        location: req.body.location,
+        type: req.body.type,
+
+        // 🔥 IMPORTANT FIX
+        companyId: req.body.companyId,
+
+        createdBy: req.user.id,
+        status: "active",
+        applications: [],
       });
+
+      res.json(job);
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);      });
 
       res.json(job);
     } catch (err) {
