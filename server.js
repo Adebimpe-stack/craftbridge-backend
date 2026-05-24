@@ -1,56 +1,88 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
 const cors = require("cors");
-
-dotenv.config();
+const mongoose = require("mongoose");
+require("dotenv").config();
 
 const app = express();
 
-// =========================
-// MIDDLEWARE
-// =========================
-app.use(express.json());
-
+// ==============================
+// CORS FIX (PRODUCTION SAFE)
+// ==============================
 app.use(
   cors({
     origin: [
-      "https://craftbridge-frontend.vercel.app",
+      "http://localhost:3000",
       "http://localhost:5173",
+      "https://craftbridge-frontend.vercel.app",
     ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
 
-// =========================
-// ROUTES
-// =========================
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/jobs", require("./routes/jobs"));
-app.use("/api/companies", require("./routes/companies"));
-app.use("/api/employer", require("./routes/employer"));
+// handle preflight requests
+app.options(/.*/, cors());
 
-// =========================
-// TEST ROUTE
-// =========================
-app.get("/", (req, res) => {
-  res.send("CraftBridge API running...");
-});
+// ==============================
+// MIDDLEWARE
+// ==============================
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// =========================
-// DB CONNECT
-// =========================
+// ==============================
+// DB CONNECTION
+// ==============================
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Connected");
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.log("❌ DB Error:", err.message));
 
-    app.listen(process.env.PORT || 5000, () => {
-      console.log(
-        `Server running on port ${process.env.PORT || 5000}`
-      );
-    });
-  })
-  .catch((err) => {
-    console.log(err);
+// ==============================
+// ROUTES (SAFE LOADING)
+// ==============================
+try {
+  const authRoutes = require("./routes/auth");
+  app.use("/api/auth", authRoutes);
+} catch (err) {
+  console.log("⚠️ auth routes missing");
+}
+
+try {
+  const jobRoutes = require("./routes/jobs");
+  app.use("/api/jobs", jobRoutes);
+} catch (err) {
+  console.log("⚠️ jobs routes missing");
+}
+
+try {
+  const companyRoutes = require("./routes/companies");
+  app.use("/api/companies", companyRoutes);
+} catch (err) {
+  console.log("⚠️ company routes missing");
+}
+
+try {
+  const employerRoutes = require("./routes/employer.routes");
+  app.use("/api/employer", employerRoutes);
+} catch (err) {
+  console.log("⚠️ employer routes missing");
+}
+
+// ==============================
+// TEST ROUTE
+// ==============================
+app.get("/", (req, res) => {
+  res.json({
+    message: "CraftBridge API Running 🚀",
   });
+});
+
+// ==============================
+// START SERVER
+// ==============================
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
