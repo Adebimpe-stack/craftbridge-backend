@@ -1,17 +1,70 @@
-const jwt = require("jsonwebtoken");
+const jwt =
+  require("jsonwebtoken");
 
-module.exports = (req, res, next) => {
-  const token = req.cookies.token;
+const User =
+  require("../models/User");
 
-  if (!token) {
-    return res.status(401).json({ message: "Not authenticated" });
-  }
+module.exports =
+  async (req, res, next) => {
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.status(401).json({ message: "Invalid token" });
-  }
-};
+    try {
+
+      // GET AUTH HEADER
+      const authHeader =
+        req.headers.authorization;
+
+      // CHECK HEADER EXISTS
+      if (!authHeader) {
+
+        return res.status(401).json({
+          message:
+            "No token provided",
+        });
+
+      }
+
+      // FORMAT:
+      // Bearer TOKEN
+      const token =
+        authHeader.split(" ")[1];
+
+      // VERIFY TOKEN
+      const decoded =
+        jwt.verify(
+
+          token,
+
+          process.env.JWT_SECRET
+        );
+
+      // FIND USER
+      const user =
+        await User.findById(
+          decoded.id
+        );
+
+      // USER REMOVED
+      if (!user) {
+
+        return res.status(403).json({
+          message:
+            "Account no longer exists. Contact admin.",
+        });
+
+      }
+
+      // ATTACH USER
+      req.user = user;
+
+      next();
+
+    } catch (error) {
+
+      return res.status(401).json({
+        message:
+          "Invalid token",
+      });
+
+    }
+
+  };

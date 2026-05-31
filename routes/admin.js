@@ -86,4 +86,83 @@ router.delete("/users/:id", auth, requireRole("admin"), async (req, res) => {
   }
 });
 
+// =======================
+// PENDING EMPLOYERS
+// =======================
+router.get(
+  "/employers/pending",
+  auth,
+  requireRole("admin"),
+  async (req, res) => {
+
+    try {
+
+      const employers =
+        await User.find({
+
+          role: "employer",
+
+          isCompanyVerified: false,
+
+        }).select("-password");
+
+      res.json(employers);
+
+    } catch (err) {
+
+      res.status(500).json({
+        message: err.message,
+      });
+
+    }
+
+  }
+);
+
+// =======================
+// VERIFY EMPLOYER
+// =======================
+router.put(
+  "/employers/:id/verify",
+  auth,
+  requireRole("admin"),
+  async (req, res) => {
+
+    try {
+
+      const employer =
+        await User.findById(
+          req.params.id
+        );
+
+      if (!employer) {
+
+        return res.status(404).json({
+          message:
+            "Employer not found",
+        });
+
+      }
+
+      employer.isCompanyVerified =
+        true;
+
+      await employer.save();
+
+      res.json({
+        message:
+          "Employer verified successfully",
+      });
+
+    } catch (err) {
+
+      res.status(500).json({
+        message: err.message,
+      });
+
+    }
+
+  }
+);
+
 module.exports = router;

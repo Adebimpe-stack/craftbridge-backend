@@ -1,88 +1,153 @@
-const express = require("express");
-const cors = require("cors");
-const mongoose = require("mongoose");
 require("dotenv").config();
 
-const app = express();
+const express =
+  require("express");
+
+const cors =
+  require("cors");
+
+const mongoose =
+  require("mongoose");
+
+const app =
+  express();
+
+const adminRoutes =
+  require("./routes/admin");
 
 // ==============================
-// CORS FIX (PRODUCTION SAFE)
+// IMPORT ROUTES
 // ==============================
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "https://craftbridge-frontend.vercel.app",
-    ],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
 
-// handle preflight requests
-app.options(/.*/, cors());
+const authRoutes =
+  require("./routes/auth");
+
+const userRoutes =
+  require("./routes/userRoutes");
+
+const jobRoutes =
+  require("./routes/jobs");
 
 // ==============================
 // MIDDLEWARE
 // ==============================
+
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(
+
+  cors({
+
+    origin: [
+
+      "http://localhost:3000",
+
+      "http://localhost:5173",
+
+      "https://craftbridge-frontend.vercel.app",
+
+      "https://craftbridgejobs.com",
+
+      "https://www.craftbridgejobs.com",
+
+    ],
+
+    credentials: true,
+
+  })
+
+);
+
+app.use(
+  "/api/admin",
+  adminRoutes
+);
 
 // ==============================
-// DB CONNECTION
+// DATABASE CONNECTION
 // ==============================
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.log("❌ DB Error:", err.message));
 
-// ==============================
-// ROUTES (SAFE LOADING)
-// ==============================
-try {
-  const authRoutes = require("./routes/auth");
-  app.use("/api/auth", authRoutes);
-} catch (err) {
-  console.log("⚠️ auth routes missing");
-}
+mongoose.connect(
 
-try {
-  const jobRoutes = require("./routes/jobs");
-  app.use("/api/jobs", jobRoutes);
-} catch (err) {
-  console.log("⚠️ jobs routes missing");
-}
+  process.env.MONGO_URI
 
-try {
-  const companyRoutes = require("./routes/companies");
-  app.use("/api/companies", companyRoutes);
-} catch (err) {
-  console.log("⚠️ company routes missing");
-}
+)
 
-try {
-  const employerRoutes = require("./routes/employer.routes");
-  app.use("/api/employer", employerRoutes);
-} catch (err) {
-  console.log("⚠️ employer routes missing");
-}
+.then(() => {
 
-// ==============================
-// TEST ROUTE
-// ==============================
-app.get("/", (req, res) => {
-  res.json({
-    message: "CraftBridge API Running 🚀",
-  });
+  console.log(
+    "MongoDB Connected ✅"
+  );
+
+})
+
+.catch((err) => {
+
+  console.log(
+    "MongoDB Error:",
+    err
+  );
+
 });
+
+// ==============================
+// API ROUTES
+// ==============================
+
+app.use(
+  "/api/auth",
+  authRoutes
+);
+
+app.use(
+  "/api/users",
+  userRoutes
+);
+
+app.use(
+  "/api/jobs",
+  jobRoutes
+);
+
+// ==============================
+// ROOT ROUTE
+// ==============================
+
+app.get(
+  "/",
+
+  (req, res) => {
+
+    res.json({
+
+      message:
+        "CraftBridge API Running 🚀",
+
+    });
+
+  }
+
+);
 
 // ==============================
 // START SERVER
 // ==============================
-const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const PORT =
+  process.env.PORT || 5000;
+
+app.listen(
+
+  PORT,
+
+  () => {
+
+    console.log(
+
+      `Server running on port ${PORT}`
+
+    );
+
+  }
+
+);
