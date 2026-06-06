@@ -447,5 +447,42 @@ router.get(
 
 );
 
+// ==============================
+// PUBLIC TALENT DIRECTORY
+// ==============================
+
+router.get(
+  "/talent",
+  async (req, res) => {
+
+    try {
+
+      const talent =
+        await User.find({
+          role: "jobseeker",
+        })
+        .select(
+          "-password"
+        )
+        .sort({
+          createdAt: -1,
+        });
+
+      res.json(talent);
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+        message:
+          "Server error",
+      });
+
+    }
+
+  }
+);
+
 module.exports =
   router;

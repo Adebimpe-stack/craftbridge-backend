@@ -36,6 +36,59 @@ const userSchema =
         type: String,
       },
 
+headline: {
+  type: String,
+},
+
+location: {
+  type: String,
+},
+
+experienceYears: {
+  type: Number,
+  default: 0,
+},
+
+skills: {
+  type: [String],
+  default: [],
+},
+
+certifications: {
+  type: [String],
+  default: [],
+},
+
+bio: {
+  type: String,
+},
+
+availability: {
+  type: String,
+  enum: [
+    "available",
+    "open_to_work",
+    "not_available",
+  ],
+  default: "available",
+},
+
+profileImage: {
+  type: String,
+},
+
+resumeUrl: {
+  type: String,
+},
+
+resumeText: {
+  type: String,
+},
+
+resumeData: {
+  type: mongoose.Schema.Types.Mixed,
+},
+
       industry: {
   type: String,
 },

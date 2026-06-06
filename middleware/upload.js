@@ -110,28 +110,51 @@ const upload =
 
           },
 
-        key:
-          function (
-            req,
-            file,
-            cb
-          ) {
+key: function (
+  req,
+  file,
+  cb
+) {
 
-            const uniqueName =
+  let folder = "uploads";
 
-              `verification-documents/${Date.now()}-${Math.round(
-                Math.random() * 1e9
-              )}${path.extname(
-                file.originalname
-              )}`;
+  if (
+    file.fieldname ===
+    "verificationDocument"
+  ) {
+    folder =
+      "verification-documents";
+  }
 
-            cb(
-              null,
-              uniqueName
-            );
+  if (
+    file.fieldname ===
+    "profilePicture"
+  ) {
+    folder =
+      "company-logos";
+  }
 
-          },
+  if (
+    file.fieldname ===
+    "resume"
+  ) {
+    folder =
+      "resumes";
+  }
 
+  const uniqueName =
+    `${folder}/${Date.now()}-${Math.round(
+      Math.random() * 1e9
+    )}${path.extname(
+      file.originalname
+    )}`;
+
+  cb(
+    null,
+    uniqueName
+  );
+
+},
       }),
 
     limits: {
