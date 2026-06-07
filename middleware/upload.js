@@ -96,6 +96,8 @@ const upload =
         bucket:
           process.env.AWS_BUCKET_NAME,
 
+       contentType: multerS3.AUTO_CONTENT_TYPE,
+
         metadata:
           function (
             req,

@@ -62,7 +62,7 @@ message: err.message,
 });
 
 // UPDATE CANDIDATE PROFILE
-router.put(
+router.post(
 "/profile",
 auth,
 upload.single("profilePicture"),
