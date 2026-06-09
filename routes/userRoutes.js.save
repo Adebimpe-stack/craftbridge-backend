@@ -66,8 +66,8 @@ router.put(
 
   upload.fields([
   {
-    name: "verificationDocuments",
-    maxCount: 10,
+    name: "verificationDocument",
+    maxCount: 1,
   },
   {
     name: "profilePicture",
@@ -137,19 +137,20 @@ router.put(
       // HANDLE FILE UPLOAD
       // =========================
 
-if (
-  req.files?.verificationDocuments
+      if (
+  req.files?.verificationDocument?.[0]
 ) {
 
-  user.verificationDocuments =
-    req.files.verificationDocuments.map(
-      (file) => file.location
-    );
+  user.verificationDocument =
+    req.files
+      .verificationDocument[0]
+      .location;
 
   user.isCompanyVerified =
     false;
 
 }
+
 if (
   req.files?.profilePicture?.[0]
 ) {
@@ -220,8 +221,8 @@ router.delete(
 
       }
 
-     user.verificationDocuments =
-  [];
+      user.verificationDocument =
+        "";
 
       user.isCompanyVerified =
         false;
@@ -335,7 +336,7 @@ router.put(
         });
       }
 
-const { status, reason } = req.body;
+      const { status } = req.body;
 
 if (status === "verified") {
 
@@ -343,28 +344,23 @@ if (status === "verified") {
   user.verificationStatus = "verified";
   user.accountStatus = "active";
 
-  user.rejectionReason = "";
-  user.suspensionReason = "";
-
 } else if (status === "rejected") {
 
   user.isCompanyVerified = false;
   user.verificationStatus = "rejected";
   user.accountStatus = "active";
 
-  user.rejectionReason = reason || "";
-
 } else if (status === "suspended") {
 
-  user.accountStatus = "suspended";
-
-  user.suspensionReason = reason || "";
+user.accountStatus = "suspended";
 
 } else if (status === "unsuspend") {
 
   user.accountStatus = "active";
 
-  user.suspensionReason = "";
+} else {
+  user.isCompanyVerified = false;
+user.verificati
 
 } else {
 
@@ -372,9 +368,10 @@ if (status === "verified") {
   user.verificationStatus = "pending";
   user.accountStatus = "active";
 
-}
+      }
 
-await user.save();
+      await user.save();
+
       res.json({
         message: `Employer ${status} successfully`,
       });

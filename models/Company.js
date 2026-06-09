@@ -23,6 +23,18 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+owner: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User",
+},
+
+teamMembers: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+],
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

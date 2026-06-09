@@ -1,6 +1,9 @@
 const express =
   require("express");
 
+const Company =
+  require("../models/Company");
+
 const bcrypt =
   require("bcryptjs");
 
@@ -18,6 +21,8 @@ const User =
 
 const sendEmail =
   require("../utils/sendEmail");
+
+
 
 // ==============================
 // REGISTER
@@ -83,6 +88,35 @@ router.post(
             false,
 
         });
+
+if (role === "employer") {
+
+  const company =
+    await Company.create({
+
+      name: name,
+
+      owner: user._id,
+
+      teamMembers: [
+        user._id,
+      ],
+
+      createdBy:
+        user._id,
+
+    });
+
+  user.companyId =
+    company._id;
+
+  user.companyRole =
+    "owner";
+
+  await user.save();
+
+}
+
 
       // CREATE VERIFICATION TOKEN
       const verificationToken =

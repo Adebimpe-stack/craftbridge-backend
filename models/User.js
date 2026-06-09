@@ -135,9 +135,11 @@ cacNumber: {
         type: String,
       },
 
-      verificationDocument: {
-  type: String,
-},
+verificationDocuments: [
+  {
+    type: String,
+  },
+],
       linkedin: {
         type: String,
       },
@@ -203,6 +205,17 @@ accountStatus: {
   default: "active",
 },
 
+rejectionReason: {
+  type: String,
+  trim: true,
+  default: "",
+},
+
+suspensionReason: {
+  type: String,
+  trim: true,
+  default: "",
+},
 companyId: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Company",
