@@ -184,6 +184,39 @@ cacNumber: {
         default: false,
       },
 
+     verificationStatus: {
+  type: String,
+  enum: [
+    "pending",
+    "verified",
+    "rejected",
+  ],
+  default: "pending",
+},
+
+accountStatus: {
+  type: String,
+  enum: [
+    "active",
+    "suspended",
+  ],
+  default: "active",
+},
+
+companyId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Company",
+},
+
+companyRole: {
+  type: String,
+  enum: [
+    "owner",
+    "admin",
+    "recruiter",
+  ],
+},
+
       hasUsedFreeJob: {
         type: Boolean,
         default: false,

@@ -15,6 +15,8 @@ const app =
 const adminRoutes =
   require("./routes/admin");
 
+const partnershipRoutes =
+  require("./partnership.routes");
 // ==============================
 // IMPORT ROUTES
 // ==============================
@@ -60,6 +62,8 @@ app.use(
   })
 
 );
+
+app.use("/api", partnershipRoutes);
 
 app.use(
   "/api/admin",

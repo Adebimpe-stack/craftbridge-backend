@@ -315,55 +315,59 @@ router.get(
 // ==============================
 
 router.put(
-
   "/admin/verify/:id",
-
   protect,
-
   async (req, res) => {
-
     try {
 
-      if (
-        req.user.role !==
-        "admin"
-      ) {
-
+      if (req.user.role !== "admin") {
         return res.status(403).json({
-
-          message:
-            "Access denied",
-
+          message: "Access denied",
         });
-
       }
 
-      const user =
-        await User.findById(
-          req.params.id
-        );
+      const user = await User.findById(
+        req.params.id
+      );
 
       if (!user) {
-
         return res.status(404).json({
-
-          message:
-            "User not found",
-
+          message: "User not found",
         });
-
       }
 
-      user.isCompanyVerified =
-        true;
+      const { status } = req.body;
+
+if (status === "verified") {
+
+  user.isCompanyVerified = true;
+  user.verificationStatus = "verified";
+  user.accountStatus = "active";
+
+} else if (status === "rejected") {
+
+  user.isCompanyVerified = false;
+  user.verificationStatus = "rejected";
+  user.accountStatus = "active";
+
+} else if (status === "suspended") {
+
+  user.isCompanyVerified = false;
+user.verificationStatus = "rejected";  
+user.accountStatus = "suspended";
+
+} else {
+
+  user.isCompanyVerified = false;
+  user.verificationStatus = "pending";
+  user.accountStatus = "active";
+
+      }
 
       await user.save();
 
       res.json({
-
-        message:
-          "Employer verified successfully",
-
+        message: `Employer ${status} successfully`,
       });
 
     } catch (error) {
@@ -371,16 +375,11 @@ router.put(
       console.log(error);
 
       res.status(500).json({
-
-        message:
-          "Server error",
-
+        message: "Server error",
       });
 
     }
-
   }
-
 );
 
 // ==============================

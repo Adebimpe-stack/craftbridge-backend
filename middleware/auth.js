@@ -38,21 +38,33 @@ module.exports =
         );
 
       // FIND USER
-      const user =
-        await User.findById(
-          decoded.id
-        );
+const user =
+  await User.findById(
+    decoded.id
+  );
 
-      // USER REMOVED
-      if (!user) {
+// USER REMOVED
+if (!user) {
 
-        return res.status(403).json({
-          message:
-            "Account no longer exists. Contact admin.",
-        });
+  return res.status(403).json({
+    message:
+      "Account no longer exists. Contact admin.",
+  });
 
-      }
+}
 
+// ACCOUNT SUSPENDED
+if (
+  user.accountStatus ===
+  "suspended"
+) {
+
+  return res.status(403).json({
+    message:
+      "Your account has been suspended.",
+  });
+
+}
       // ATTACH USER
       req.user = user;
 
