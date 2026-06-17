@@ -39,12 +39,6 @@ router.post("/", auth, role(["employer"]), async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const jobCount = await Job.countDocuments({
-      createdBy: userId,
-    });
-
-    const isFirstJob = jobCount === 0;
-
     const user = await User.findById(userId);
 
     if (!user) {
@@ -52,6 +46,18 @@ router.post("/", auth, role(["employer"]), async (req, res) => {
         message: "User not found",
       });
     }
+
+    if (!user.companyId) {
+      return res.status(400).json({
+        message: "User must be associated with a company to post jobs",
+      });
+    }
+
+    const jobCount = await Job.countDocuments({
+      companyId: user.companyId,
+    });
+
+    const isFirstJob = jobCount === 0;
 
     // FREE JOB RULE
     if (!isFirstJob && !user.hasPaidJobPost) {
@@ -63,6 +69,7 @@ router.post("/", auth, role(["employer"]), async (req, res) => {
 
     const job = await Job.create({
       ...req.body,
+      companyId: user.companyId,
       createdBy: userId,
       status: "active",
     });
@@ -91,7 +98,7 @@ router.patch(
       }
 
       // ownership check
-      if (job.createdBy.toString() !== req.user.id) {
+      if (job.companyId.toString() !== req.user.companyId?.toString()) {
         return res.status(403).json({
           message: "Not allowed",
         });

@@ -23,21 +23,59 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
-owner: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "User",
-},
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-teamMembers: [
-  {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-  },
-],
+    teamMembers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+
+    // Company verification status
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
+    },
+
+    verificationDocuments: [
+      {
+        type: String,
+      },
+    ],
+
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // Company details
+    industry: {
+      type: String,
+    },
+
+    companySize: {
+      type: String,
+      enum: ["1-10", "11-50", "51-200", "201-500", "500+"],
+    },
+
+    location: {
+      type: String,
+    },
+
+    cacNumber: {
+      type: String,
     },
   },
   { timestamps: true }

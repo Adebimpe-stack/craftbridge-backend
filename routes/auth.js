@@ -471,27 +471,27 @@ if (user.accountStatus === "suspended") {
 
         );
 
+      // Prepare user response
+      const userResponse = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
+
+      // Add company info for employers
+      if (user.role === "employer" && user.companyId) {
+        userResponse.companyId = user.companyId;
+        userResponse.companyRole = user.companyRole;
+      }
+
       return res
         .status(200)
         .json({
 
           token,
 
-          user: {
-
-            _id:
-              user._id,
-
-            name:
-              user.name,
-
-            email:
-              user.email,
-
-            role:
-              user.role,
-
-          },
+          user: userResponse,
 
         });
 

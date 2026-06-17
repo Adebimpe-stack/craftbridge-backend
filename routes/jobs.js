@@ -153,6 +153,9 @@ const newJob =
     benefits:
       req.body.benefits,
 
+    companyId:
+      user.companyId,
+
     createdBy:
       user._id,
 
@@ -269,6 +272,97 @@ router.get(
 );
 
 // =========================
+// UPDATE JOB
+// =========================
+
+router.put(
+  "/:id",
+  auth,
+  async (req, res) => {
+
+    try {
+
+      const job =
+        await Job.findById(
+          req.params.id
+        );
+
+      if (!job) {
+
+        return res.status(404).json({
+          message:
+            "Job not found",
+        });
+
+      }
+
+      // COMPANY MEMBER ONLY
+
+if (
+  job.companyId.toString() !==
+  req.user.companyId?.toString()
+) {
+
+  return res.status(403).json({
+    message:
+      "Not authorized",
+  });
+
+}
+
+      // Update editable fields
+      const {
+        title,
+        description,
+        location,
+        salary,
+        type,
+        category,
+        field,
+        workMode,
+        experienceLevel,
+        vacancies,
+        applicationDeadline,
+        requirements,
+        benefits,
+      } = req.body;
+
+      if (title !== undefined) job.title = title;
+      if (description !== undefined) job.description = description;
+      if (location !== undefined) job.location = location;
+      if (salary !== undefined) job.salary = salary;
+      if (type !== undefined) job.type = type;
+      if (category !== undefined) job.category = category;
+      if (field !== undefined) job.field = field;
+      if (workMode !== undefined) job.workMode = workMode;
+      if (experienceLevel !== undefined) job.experienceLevel = experienceLevel;
+      if (vacancies !== undefined) job.vacancies = vacancies;
+      if (applicationDeadline !== undefined) job.applicationDeadline = applicationDeadline;
+      if (requirements !== undefined) job.requirements = requirements;
+      if (benefits !== undefined) job.benefits = benefits;
+
+      // Preserve createdBy and companyId
+      // These are not modified
+
+      await job.save();
+
+      res.json(job);
+
+} catch (error) {
+
+  console.log(error);
+
+  res.status(500).json({
+    message:
+      "Server error",
+  });
+
+}
+
+}
+);
+
+// =========================
 // CLOSE JOB
 // =========================
 
@@ -293,11 +387,11 @@ router.put(
 
       }
 
-      // OWNER ONLY
+      // COMPANY MEMBER ONLY
 
 if (
-  job.createdBy.toString() !==
-  req.user.id
+  job.companyId.toString() !==
+  req.user.companyId?.toString()
 ) {
 
   return res.status(403).json({
@@ -357,13 +451,12 @@ router.delete(
 
       }
 
-      // OWNER OR ADMIN
+      // COMPANY MEMBER OR ADMIN
 
-// OWNER OR ADMIN
 if (
 
-  job.createdBy.toString() !==
-    req.user.id &&
+  job.companyId.toString() !==
+    req.user.companyId?.toString() &&
 
   req.user.role !==
     "admin"

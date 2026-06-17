@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const auth = require("../middleware/auth");
+const User = require("../models/User");
 const Job = require("../models/Job");
 const Application =
   require("../models/Application");
@@ -7,7 +8,13 @@ const Application =
 // GET EMPLOYER STATS
 router.get("/stats", auth, async (req, res) => {
   try {
-    const jobs = await Job.find({ createdBy: req.user.id });
+    const user = await User.findById(req.user.id);
+    
+    if (!user.companyId) {
+      return res.status(400).json({ message: "No company associated with this user" });
+    }
+
+    const jobs = await Job.find({ companyId: user.companyId });
 
     const totalJobs = jobs.length;
 
@@ -36,10 +43,15 @@ router.get(
   auth,
   async (req, res) => {
     try {
+      const user = await User.findById(req.user.id);
+      
+      if (!user.companyId) {
+        return res.status(400).json({ message: "No company associated with this user" });
+      }
 
       const jobs =
         await Job.find({
-          createdBy: req.user._id,
+          companyId: user.companyId,
         });
 
       const applications =

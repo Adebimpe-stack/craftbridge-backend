@@ -1,27 +1,57 @@
 const mongoose = require("mongoose");
 
 const applicationSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  status: { type: String, default: "pending" },
-  appliedAt: { type: Date, default: Date.now },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+
+  status: {
+    type: String,
+    default: "pending",
+  },
+
+  resume: {
+    type: String,
+    default: null,
+  },
+
+  appliedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 const jobSchema = new mongoose.Schema(
   {
-    title: String,
-    description: String,
-    location: String,
-type: String,
+    title: {
+      type: String,
+      required: true,
+    },
 
-status: {
-  type: String,
-  enum: ["active", "suspended", "closed"],
-  default: "active",
-},
+    description: {
+      type: String,
+      required: true,
+    },
 
-createdBy: {
+    location: {
+      type: String,
+      required: true,
+    },
 
+    type: {
+      type: String,
+      required: true,
+    },
 
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
+
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },

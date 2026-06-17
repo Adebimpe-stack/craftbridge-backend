@@ -514,7 +514,7 @@ router.get(
       const jobs =
         await Job.find({
 
-          employer:
+          companyId:
             company._id,
 
         });
