@@ -141,11 +141,27 @@ if (
   req.files?.verificationDocuments
 ) {
 
-  user.verificationDocuments =
-    req.files.verificationDocuments.map(
-      (file) => file.location
-    );
+console.log(
+  "CURRENT DOCS:",
+  user.verificationDocuments
+);
 
+console.log(
+  "NEW DOCS:",
+  req.files.verificationDocuments.map(
+    file => file.location
+  )
+);
+
+const newDocs =
+  req.files.verificationDocuments.map(
+    (file) => file.location
+  );
+
+user.verificationDocuments = [
+  ...(user.verificationDocuments || []),
+  ...newDocs,
+];
   user.isCompanyVerified =
     false;
 
@@ -228,10 +244,83 @@ router.delete(
 
       await user.save();
 
+if (
+  user.isCompanyVerified &&
+  (
+    req.files?.profilePicture?.[0] ||
+    req.files?.verificationDocuments ||
+    req.body.companyName !== user.companyName ||
+    req.body.website !== user.website
+  )
+) {
+
+  user.isCompanyVerified = false;
+
+  user.verificationStatus =
+    "pending";
+
+}
+
       res.json({
 
         message:
           "Verification document removed",
+
+      });
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+
+        message:
+          "Server error",
+
+      });
+
+    }
+
+  }
+
+);
+
+// ==============================
+// DELETE COMPANY LOGO
+// ==============================
+
+router.delete(
+
+  "/company-profile/logo",
+
+  protect,
+
+  async (req, res) => {
+
+    try {
+
+      const user =
+        await User.findById(
+          req.user.id
+        );
+
+      if (!user) {
+
+        return res.status(404).json({
+          message:
+            "User not found",
+        });
+
+      }
+
+      user.profilePicture = "";
+
+      await user.save();
+
+      res.json({
+
+        message:
+          "Logo removed",
 
       });
 
@@ -492,5 +581,66 @@ router.get(
   }
 );
 
+// ==============================
+// SUBMIT VERIFICATION
+// ==============================
+
+router.put(
+  "/company-profile/submit",
+  protect,
+  async (req, res) => {
+
+    try {
+
+      const user =
+        await User.findById(
+          req.user.id
+        );
+
+      if (!user) {
+
+        return res.status(404).json({
+          message: "User not found",
+        });
+
+      }
+
+      if (
+        !user.verificationDocuments ||
+        user.verificationDocuments.length === 0
+      ) {
+
+        return res.status(400).json({
+          message:
+            "Upload documents first",
+        });
+
+      }
+
+      user.verificationStatus =
+        "pending";
+
+      user.isCompanyVerified =
+        false;
+
+      await user.save();
+
+      res.json({
+        message:
+          "Verification submitted",
+      });
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+        message: "Server error",
+      });
+
+    }
+
+  }
+);
 module.exports =
   router;

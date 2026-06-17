@@ -33,6 +33,9 @@ const jobRoutes =
 const candidateRoutes =
   require("./routes/candidate");
 
+const employerRoutes =
+  require("./routes/employer");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -119,6 +122,11 @@ app.use(
 app.use(
   "/api/candidate",
   candidateRoutes
+);
+
+app.use(
+  "/api/employer",
+  employerRoutes
 );
 
 // ==============================

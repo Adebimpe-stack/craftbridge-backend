@@ -7,37 +7,46 @@ const upload = require("../middleware/upload");
 const Job = require("../models/Job");
 const User = require("../models/User");
 
+const Application =
+  require("../models/Application");
+
 // GET ALL JOBS APPLIED BY USER
-router.get("/applications", auth, async (req, res) => {
-try {
-const jobs = await Job.find({
-"applicants.userId": req.user.id,
-});
 
+router.get(
+  "/applications",
+  auth,
+  async (req, res) => {
+    try {
 
-const applications = jobs.map((job) => {
-  const myApp = job.applicants.find(
-    (a) => a.userId.toString() === req.user.id
-  );
+      const applications =
+        await Application.find({
+          applicant: req.user._id,
+        })
+        .populate("job")
+        .sort({
+          createdAt: -1,
+        });
 
-  return {
-    jobId: job._id,
-    title: job.title,
-    location: job.location,
-    description: job.description,
-    status: myApp?.status || "pending",
-  };
-});
+      const result =
+        applications.map(app => ({
+          _id: app._id,
+          title: app.job?.title,
+          location: app.job?.location,
+          description: app.job?.description,
+          status: app.status,
+        }));
 
-res.json(applications);
+      res.json(result);
 
+    } catch (err) {
 
-} catch (err) {
-res.status(500).json({
-message: err.message,
-});
-}
-});
+      res.status(500).json({
+        message: err.message,
+      });
+
+    }
+  }
+);
 
 // GET CANDIDATE PROFILE
 router.get("/profile", auth, async (req, res) => {

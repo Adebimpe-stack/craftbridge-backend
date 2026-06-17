@@ -4,6 +4,9 @@ const express =
 const router =
   express.Router();
 
+const Application =
+  require("../models/Application");
+
 const Job =
   require("../models/Job");
 
@@ -21,6 +24,7 @@ router.post(
   "/",
   auth,
   async (req, res) => {
+console.log("REQ USER:", req.user);
 
     try {
 
@@ -172,9 +176,10 @@ const newJob =
 
       }
 
-      res.status(201).json(
-        savedJob
-      );
+
+res.status(201).json(
+  savedJob
+);
 
     } catch (error) {
 
@@ -189,6 +194,7 @@ const newJob =
 
   }
 );
+
 
 // =========================
 // GET ALL JOBS
@@ -390,6 +396,65 @@ res.json({
 }
 
 }
+);
+
+// =========================
+// APPLY FOR JOB
+// =========================
+
+router.post(
+  "/:id/apply",
+  auth,
+  async (req, res) => {
+    try {
+
+const job = await Job.findById(
+  req.params.id
+);
+
+if (!job) {
+  return res.status(404).json({
+    message: "Job not found",
+  });
+}
+
+const existingApplication =
+  await Application.findOne({
+    job: job._id,
+    applicant: req.user.id,
+  });
+
+if (existingApplication) {
+  return res.status(400).json({
+    message:
+      "You have already applied for this job",
+  });
+}
+
+const application =
+  new Application({
+    job: job._id,
+    applicant: req.user._id,
+    coverLetter:
+      req.body?.coverLetter || "",
+  });
+
+await application.save();
+
+res.json({
+  message:
+    "Application submitted successfully",
+});
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+        message: "Server error",
+      });
+
+    }
+  }
 );
 
 module.exports =

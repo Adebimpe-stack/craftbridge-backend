@@ -11,9 +11,17 @@ const jobSchema = new mongoose.Schema(
     title: String,
     description: String,
     location: String,
-    type: String,
+type: String,
 
-    createdBy: {
+status: {
+  type: String,
+  enum: ["active", "suspended", "closed"],
+  default: "active",
+},
+
+createdBy: {
+
+
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
