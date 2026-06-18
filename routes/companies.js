@@ -4,6 +4,8 @@ const Company = require("../models/Company");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const TeamInvitation = require("../models/TeamInvitation");
+const Application = require("../models/Application");
+const { sendInvitationEmail } = require("../services/emailService");
 
 // =========================
 // GET COMPANY + ITS JOBS
@@ -75,6 +77,7 @@ router.put("/:id", auth, async (req, res) => {
     // Check if user is owner or admin of the company
     const user = await User.findById(req.user.id);
     if (
+      !user.companyId ||
       user.companyId.toString() !== company._id.toString() ||
       (user.companyRole !== "owner" && user.companyRole !== "admin")
     ) {
@@ -128,7 +131,10 @@ router.get("/:id/team", auth, async (req, res) => {
     }
 
     const user = await User.findById(req.user.id);
-    if (user.companyId.toString() !== company._id.toString()) {
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString()
+    ) {
       return res.status(403).json({
         message: "Not authorized to view this company's team"
       });
@@ -171,6 +177,7 @@ router.post("/:id/invite", auth, async (req, res) => {
 
     const user = await User.findById(req.user.id);
     if (
+      !user.companyId ||
       user.companyId.toString() !== company._id.toString() ||
       user.companyRole !== "owner"
     ) {
@@ -210,6 +217,27 @@ router.post("/:id/invite", auth, async (req, res) => {
       invitedBy: user._id,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
+
+    // Send invitation email
+    try {
+      const emailResult = await sendInvitationEmail({
+        to: email,
+        companyName: company.name,
+        inviterName: user.name,
+        role: role,
+        invitationId: invitation._id,
+        expiryDate: invitation.expiresAt.toLocaleDateString(),
+      });
+
+      if (emailResult.success) {
+        console.log("Invitation email sent successfully to:", email);
+      } else {
+        console.error("Failed to send invitation email:", emailResult.error);
+      }
+    } catch (emailError) {
+      console.error("Error sending invitation email:", emailError);
+      // Do not fail the invitation creation if email sending fails
+    }
 
     res.status(201).json({
       message: "Invitation sent successfully",
@@ -314,6 +342,94 @@ router.get("/invitations/pending", auth, async (req, res) => {
 });
 
 // =========================
+// RESEND INVITATION EMAIL
+// =========================
+router.post("/:id/invitations/:invitationId/resend", auth, async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString() ||
+      user.companyRole !== "owner"
+    ) {
+      return res.status(403).json({
+        message: "Only company owners can resend invitations"
+      });
+    }
+
+    const invitation = await TeamInvitation.findById(req.params.invitationId);
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.company.toString() !== company._id.toString()) {
+      return res.status(403).json({
+        message: "Invitation does not belong to this company"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: "Can only resend pending invitations"
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    // Resend invitation email
+    try {
+      const emailResult = await sendInvitationEmail({
+        to: invitation.email,
+        companyName: company.name,
+        inviterName: user.name,
+        role: invitation.role,
+        invitationId: invitation._id,
+        expiryDate: invitation.expiresAt.toLocaleDateString(),
+      });
+
+      if (emailResult.success) {
+        console.log("Invitation email resent successfully to:", invitation.email);
+        res.json({
+          message: "Invitation email resent successfully",
+          messageId: emailResult.messageId
+        });
+      } else {
+        console.error("Failed to resend invitation email:", emailResult.error);
+        res.status(500).json({
+          message: "Failed to resend invitation email",
+          error: emailResult.error
+        });
+      }
+    } catch (emailError) {
+      console.error("Error resending invitation email:", emailError);
+      res.status(500).json({
+        message: "Error resending invitation email",
+        error: emailError.message
+      });
+    }
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
 // REMOVE TEAM MEMBER
 // =========================
 router.delete("/:id/team/:userId", auth, async (req, res) => {
@@ -328,6 +444,7 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
 
     const requestingUser = await User.findById(req.user.id);
     if (
+      !requestingUser.companyId ||
       requestingUser.companyId.toString() !== company._id.toString() ||
       requestingUser.companyRole !== "owner"
     ) {
@@ -378,6 +495,77 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
 });
 
 // =========================
+// GET COMPANY DASHBOARD STATS
+// =========================
+router.get("/:id/dashboard", auth, async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to view this company's dashboard"
+      });
+    }
+
+    // Get company jobs
+    const jobs = await Job.find({ companyId: company._id });
+    const totalJobs = jobs.length;
+    const activeJobs = jobs.filter(job => job.status !== "closed").length;
+
+    // Get applicants for all company jobs
+    const jobIds = jobs.map(job => job._id);
+    const applications = await Application.find({
+      job: { $in: jobIds }
+    });
+    const totalApplicants = applications.length;
+
+    // Get pending invitations
+    const pendingInvitations = await TeamInvitation.find({
+      company: company._id,
+      status: "pending",
+      expiresAt: { $gt: new Date() }
+    });
+
+    // Get team members count
+    const teamMembersCount = company.teamMembers.length;
+
+    res.json({
+      company: {
+        name: company.name,
+        subscriptionPlan: company.subscriptionPlan,
+        jobsPosted: company.jobsPosted,
+        subscriptionActive: company.subscriptionActive,
+        verificationStatus: company.verificationStatus,
+      },
+      stats: {
+        totalJobs,
+        activeJobs,
+        totalApplicants,
+        teamMembersCount,
+        pendingInvitations: pendingInvitations.length,
+      },
+      jobsRemaining: company.subscriptionActive 
+        ? -1 // unlimited for active subscriptions
+        : Math.max(0, 1 - company.jobsPosted), // free plan: 1 job
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
 // UPDATE TEAM MEMBER ROLE
 // =========================
 router.put("/:id/team/:userId/role", auth, async (req, res) => {
@@ -401,6 +589,7 @@ router.put("/:id/team/:userId/role", auth, async (req, res) => {
 
     const requestingUser = await User.findById(req.user.id);
     if (
+      !requestingUser.companyId ||
       requestingUser.companyId.toString() !== company._id.toString() ||
       requestingUser.companyRole !== "owner"
     ) {
