@@ -9,12 +9,15 @@ const Application =
 
 const Job =
   require("../models/Job");
+const Company = require("../models/Company");
 
 const User =
   require("../models/User");
 
 const auth =
   require("../middleware/auth");
+
+const { body, validationResult } = require("express-validator");
 
 // =========================
 // CREATE JOB
@@ -23,15 +26,26 @@ const auth =
 router.post(
   "/",
   auth,
+  [
+    body("title", "Job title is required").not().isEmpty(),
+    body("category", "Category is required").not().isEmpty(),
+    body("location", "Location is required").not().isEmpty(),
+    body("description", "Description is required").not().isEmpty(),
+    body("type", "Job type is required").not().isEmpty(),
+  ],
   async (req, res) => {
 console.log("REQ USER:", req.user);
-
     try {
 
       const user =
         await User.findById(
           req.user.id
         );
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
       if (!user) {
 
@@ -77,14 +91,12 @@ console.log("REQ USER:", req.user);
       // COMPANY VERIFICATION
       // =========================
 
-      if (
-        !user.isCompanyVerified
-      ) {
-
+      const company = await Company.findById(user.companyId);
+      if (!company || company.verificationStatus !== "verified") {
         return res.status(403).json({
 
           message:
-            "Your company is pending verification by admin",
+            "Your company must be verified by an admin before posting jobs.",
 
         });
 
@@ -296,19 +308,19 @@ router.put(
 
       }
 
-      // COMPANY MEMBER ONLY
+      // AUTHORIZATION: Verify user is an owner/admin of the company that owns this job.
+      const company = await Company.findById(job.companyId);
+      if (!company) {
+        return res.status(404).json({ message: "Associated company not found" });
+      }
 
-if (
-  job.companyId.toString() !==
-  req.user.companyId?.toString()
-) {
+      const user = await User.findById(req.user.id);
+      const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+      const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
 
-  return res.status(403).json({
-    message:
-      "Not authorized",
-  });
-
-}
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Not authorized to update this job" });
+      }
 
       // Update editable fields
       const {
@@ -387,20 +399,19 @@ router.put(
 
       }
 
-      // COMPANY MEMBER ONLY
+      // AUTHORIZATION: Verify user is an owner/admin of the company that owns this job.
+      const company = await Company.findById(job.companyId);
+      if (!company) {
+        return res.status(404).json({ message: "Associated company not found" });
+      }
 
-if (
-  job.companyId.toString() !==
-  req.user.companyId?.toString()
-) {
+      const user = await User.findById(req.user.id);
+      const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+      const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
 
-  return res.status(403).json({
-    message:
-      "Not authorized",
-  });
-
-}
-
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Not authorized to close this job" });
+      }
 
 job.status =
   "closed";
@@ -451,24 +462,21 @@ router.delete(
 
       }
 
-      // COMPANY MEMBER OR ADMIN
+      // AUTHORIZATION: Verify user is an owner/admin of the company that owns this job, OR a platform admin.
+      const user = await User.findById(req.user.id);
+      if (user.role !== "admin") {
+        const company = await Company.findById(job.companyId);
+        if (!company) {
+          return res.status(404).json({ message: "Associated company not found" });
+        }
 
-if (
+        const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+        const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
 
-  job.companyId.toString() !==
-    req.user.companyId?.toString() &&
-
-  req.user.role !==
-    "admin"
-
-) {
-
-  return res.status(403).json({
-    message:
-      "Not authorized",
-  });
-
-}
+        if (!hasPermission) {
+          return res.status(403).json({ message: "Not authorized to delete this job" });
+        }
+      }
 
 await job.deleteOne();
 

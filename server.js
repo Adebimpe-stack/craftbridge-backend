@@ -9,6 +9,9 @@ const cors =
 const mongoose =
   require("mongoose");
 
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+
 const app =
   express();
 
@@ -36,9 +39,32 @@ const candidateRoutes =
 const employerRoutes =
   require("./routes/employer");
 
+const reportRoutes =
+  require("./routes/reports");
+
+const workerRoutes =
+  require("./routes/workers");
+
+const serviceRequestRoutes =
+  require("./routes/servicerequests");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
+
+// Security Headers
+app.use(helmet());
+
+// Rate Limiting for Auth Routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests from this IP, please try again after 15 minutes",
+});
+
+app.use("/api/auth", authLimiter);
 
 app.use(express.json());
 
@@ -127,6 +153,21 @@ app.use(
 app.use(
   "/api/employer",
   employerRoutes
+);
+
+app.use(
+  "/api/reports",
+  reportRoutes
+);
+
+app.use(
+  "/api/workers",
+  workerRoutes
+);
+
+app.use(
+  "/api/servicerequests",
+  serviceRequestRoutes
 );
 
 // ==============================

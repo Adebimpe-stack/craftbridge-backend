@@ -39,8 +39,8 @@ module.exports =
 
       // FIND USER
 const user =
-  await User.findById(
-    decoded.id
+  await User.findById(decoded.id).select(
+    "-password -emailVerificationToken -resetPasswordToken"
   );
 
 // USER REMOVED

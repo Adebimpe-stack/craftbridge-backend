@@ -26,24 +26,109 @@ const userSchema =
         type: String,
         enum: [
           "jobseeker",
-          "employer",
-          "admin",
+          "employer", "admin"
         ],
         default: "jobseeker",
       },
 
-      companyName: {
+      // ==============================
+      // PROFESSIONAL & SKILLED WORKER PROFILE
+      // ==============================
+      availabilityFor: {
+        type: [String],
+        enum: [
+          "Full-time Employment",
+          "Part-time Employment",
+          "Contract Work",
+          "Freelance Services",
+          "Emergency Call-outs",
+          "Apprenticeship",
+          "Relocation"
+        ],
+        default: ["Full-time Employment"]
+      },
+      primaryTrade: {
         type: String,
       },
+      serviceDescription: {
+        type: String,
+      },
+      professionalSummary: {
+        type: String,
+      },
+      portfolio: [
+        {
+          title: String,
+          description: String,
+          category: String,
+          completionYear: Number,
+          isFeatured: { type: Boolean, default: false },
+          url: String,
+          caption: String,
+          type: { type: String, enum: ["image", "video"], default: "image" },
+        },
+      ],
+      serviceLocations: [String],
+      languages: [String],
+      emergencyService: {
+        type: Boolean,
+        default: false,
+      },
+      startingPrice: {
+        type: Number,
+      },
+      phoneVisibility: {
+        type: String,
+        enum: ["public", "on_request", "private"],
+        default: "private",
+      },
+      socialLinks: {
+        linkedin: String,
+        twitter: String,
+      },
+      profileVisibility: {
+        type: String,
+        enum: ["Public", "Employers Only", "Private"],
+        default: "Public",
+      },
+      profileSlug: {
+        type: String,
+        unique: true,
+        sparse: true, // Allows multiple null values, but unique once set
+      },
+      workerVerificationStatus: {
+        type: String,
+        enum: ["unverified", "pending", "verified", "rejected"],
+        default: "unverified",
+      },
+      // Flexible, evidence-based verification
+      verificationEvidence: [
+        {
+          evidenceCategory: { type: String, required: true },
+          documentName: { type: String, required: true },
+          documentUrl: { type: String, required: true },
+          status: { type: String, enum: ["Pending", "Approved", "Rejected", "Additional Evidence Required"], default: "Pending" },
+          adminNotes: String, // Internal notes
+          applicantNotes: String, // Notes visible to the professional
+        }
+      ],
+      workerRejectionReason: {
+        type: String,
+        trim: true,
+        {
+          type: String,
+        },
+      ],
+      workerRejectionReason: {
+        type: String,
+        trim: true,
+      },
+
+
 
 headline: {
   type: String,
 },
-
-location: {
-  type: String,
-},
-
 experienceYears: {
   type: Number,
   default: 0,
@@ -77,10 +162,6 @@ profileImage: {
   type: String,
 },
 
-resumeUrl: {
-  type: String,
-},
-
 resumeText: {
   type: String,
 },
@@ -88,40 +169,6 @@ resumeText: {
 resumeData: {
   type: mongoose.Schema.Types.Mixed,
 },
-
-      industry: {
-  type: String,
-},
-
-      phone: {
-        type: String,
-      },
-
-      location: {
-        type: String,
-      },
-
-companySize: {
-  type: String,
-},
-
-description: {
-  type: String,
-},
-
-cacNumber: {
-  type: String,
-},
-
-      bio: {
-        type: String,
-      },
-
-      skills: [
-        {
-          type: String,
-        },
-      ],
 
       resume: {
         type: String,
@@ -132,15 +179,6 @@ cacNumber: {
       },
 
       website: {
-        type: String,
-      },
-
-verificationDocuments: [
-  {
-    type: String,
-  },
-],
-      linkedin: {
         type: String,
       },
 
@@ -161,10 +199,6 @@ verificationDocuments: [
         default: false,
       },
 
-      // ==============================
-      // EMAIL VERIFICATION
-      // ==============================
-
       emailVerificationToken: {
         type: String,
       },
@@ -176,40 +210,6 @@ verificationDocuments: [
       resetPasswordToken: {
         type: String,
       },
-
-      // ==============================
-      // EMPLOYER SYSTEM
-      // ==============================
-
-      isCompanyVerified: {
-        type: Boolean,
-        default: false,
-      },
-
-     verificationStatus: {
-  type: String,
-  enum: [
-    "pending",
-    "verified",
-    "rejected",
-  ],
-  default: "pending",
-},
-
-accountStatus: {
-  type: String,
-  enum: [
-    "active",
-    "suspended",
-  ],
-  default: "active",
-},
-
-rejectionReason: {
-  type: String,
-  trim: true,
-  default: "",
-},
 
 suspensionReason: {
   type: String,
@@ -256,6 +256,11 @@ companyRole: {
       createdAt: {
         type: Date,
         default: Date.now,
+      },
+
+      reportsReceived: {
+        type: Number,
+        default: 0,
       },
 
     },

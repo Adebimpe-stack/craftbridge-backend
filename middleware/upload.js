@@ -51,6 +51,8 @@ const allowedMimeTypes = [
 
   "image/jpg",
 
+  "image/jpg",
+
 ];
 
 // ==============================
@@ -162,7 +164,7 @@ key: function (
     limits: {
 
       fileSize:
-        10 * 1024 * 1024,
+        5 * 1024 * 1024, // 5 MB file size limit
 
     },
 

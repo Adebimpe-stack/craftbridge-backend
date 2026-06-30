@@ -36,6 +36,14 @@ const companySchema = new mongoose.Schema(
       },
     ],
 
+    // Employer Favourites with Notes
+    favoriteProfessionals: [
+      {
+        professional: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        notes: { type: String, trim: true },
+      }
+    ],
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -77,8 +85,72 @@ const companySchema = new mongoose.Schema(
     cacNumber: {
       type: String,
     },
+
+    // Company status
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    deactivatedAt: {
+      type: Date,
+    },
+
+    deactivatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    // Deactivation/Reactivation request
+    deactivationRequest: {
+      requestType: { type: String, enum: ["deactivation", "reactivation"] },
+      reason: String,
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      requestedAt: Date,
+      status: { type: String, enum: ["pending", "approved", "rejected"] },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: Date,
+      rejectionReason: String,
+    },
+
+    // Type change request
+    typeChangeRequest: {
+      requestedType: String,
+      currentType: String,
+      reason: String,
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      requestedAt: Date,
+      status: { type: String, enum: ["pending", "approved", "rejected"] },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: Date,
+      rejectionReason: String,
+    },
+
+    // Deletion request
+    deletionRequest: {
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      requestedAt: Date,
+      status: { type: String, enum: ["pending", "approved", "rejected"] },
+      scheduledFor: Date,
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      approvedAt: Date,
+      rejectionReason: String,
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: Date,
+    },
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: Date,
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
+
+companySchema.virtual("age").get(function () {
+  return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
+});
 
 module.exports = mongoose.model("Company", companySchema);

@@ -22,6 +22,7 @@ const User =
 const sendEmail =
   require("../utils/sendEmail");
 
+const { body, validationResult } = require("express-validator");
 
 
 // ==============================
@@ -30,7 +31,14 @@ const sendEmail =
 
 router.post(
   "/register",
-
+  [
+    body("name", "Name is required").not().isEmpty(),
+    body("email", "Please include a valid email").isEmail(),
+    body(
+      "password",
+      "Please enter a password with 6 or more characters"
+    ).isLength({ min: 6 }),
+  ],
   async (req, res) => {
 
     try {
@@ -40,7 +48,13 @@ router.post(
         email,
         password,
         role,
+        availabilityFor,
       } = req.body;
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
       // CHECK EXISTING USER
       const existingUser =
@@ -83,6 +97,7 @@ router.post(
             hashedPassword,
 
           role,
+          availabilityFor: role === 'jobseeker' ? availabilityFor : undefined,
 
           isVerified:
             false,
@@ -643,11 +658,20 @@ router.post(
 router.post(
 
   "/reset-password",
-
+  [
+    body("token", "Token is required").not().isEmpty(),
+    body("password", "Password must be 6 or more characters").isLength({
+      min: 6,
+    }),
+  ],
   async (req, res) => {
 
     try {
 
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
       const {
         token,
         password,
