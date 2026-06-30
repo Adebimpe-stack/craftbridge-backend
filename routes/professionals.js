@@ -59,7 +59,6 @@ router.get("/", async (req, res) => {
       ];
     }
 
-console.log("Professional query:", query);
 
     const professionals = await User.find(query)
       .select(
@@ -79,8 +78,6 @@ console.log("Professional query:", query);
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-console.log("Found:", professionals.length);
-console.log(professionals);
 
     const total = await User.countDocuments(query);
 
@@ -102,4 +99,45 @@ console.log(professionals);
   }
 });
 
+// GET SINGLE PROFESSIONAL
+router.get("/:id", async (req, res) => {
+  try {
+    const professional = await User.findOne({
+      _id: req.params.id,
+      role: "jobseeker",
+    }).select(
+      "name \
+headline \
+primaryTrade \
+professionalSummary \
+serviceDescription \
+location \
+profilePicture \
+experienceYears \
+skills \
+certifications \
+languages \
+serviceLocations \
+workerVerificationStatus \
+emergencyService \
+portfolio \
+bio"
+    );
+
+    if (!professional) {
+      return res.status(404).json({
+        message: "Professional not found",
+      });
+    }
+
+    res.json(professional);
+
+  } catch (err) {
+
+    res.status(500).json({
+      message: "Server error",
+    });
+
+  }
+});
 module.exports = router;
