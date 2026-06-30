@@ -55,17 +55,6 @@ const serviceRequestRoutes =
 // Security Headers
 app.use(helmet());
 
-// Rate Limiting for Auth Routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: "Too many requests from this IP, please try again after 15 minutes",
-});
-
-app.use("/api/auth", authLimiter);
-
 app.use(express.json());
 
 app.use(
@@ -91,6 +80,20 @@ app.use(
   })
 
 );
+
+// Rate Limiting for Auth Routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests from this IP, please try again after 15 minutes",
+});
+
+const authRouter = express.Router();
+authRouter.use(cors()); // Apply CORS before the rate limiter for this router
+authRouter.use(authLimiter);
+authRouter.use(authRoutes);
 
 app.use("/api", partnershipRoutes);
 
@@ -130,10 +133,7 @@ mongoose.connect(
 // API ROUTES
 // ==============================
 
-app.use(
-  "/api/auth",
-  authRoutes
-);
+app.use("/api/auth", authRouter);
 
 app.use(
   "/api/users",
