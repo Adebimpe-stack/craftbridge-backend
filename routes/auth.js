@@ -41,34 +41,25 @@ router.post(
   ],
   async (req, res) => {
 
-    try {
+try {
 
-      HEAD
-      const {
-        name,
-        email,
-        password,
-        role,
-        availabilityFor,
-      } = req.body;
+  const {
+    name,
+    email,
+    password,
+    role,
+    companyName,
+    companyType,
+    website,
+    linkedin,
+    availabilityFor,
+  } = req.body;
 
+  console.log(req.body);
+  console.log("companyType:", companyType);
 
-const {
-  name,
-  email,
-  password,
-  role,
-  companyName,
-  companyType,
-  website,
-  linkedin,
-} = req.body;
+  const errors = validationResult(req);
 
-console.log(req.body);
-console.log("companyType:", companyType);
- 7dbcbff (Fix backend syntax errors and stabilize server)
-
-      const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
@@ -105,27 +96,15 @@ const existingUser =
 
       // CREATE USER
 
-const user =
-  await User.create({
 
-    name,
-
-    email,
-
-        HEAD
-          role,
-          availabilityFor: role === 'jobseeker' ? availabilityFor : undefined,
-
-    password:
-      hashedPassword
-7dbcbff (Fix backend syntax errors and stabilize server)
-
-    role,
-
-    companyName,
-
-    website,
-
+const user = await User.create({
+  name,
+  email,
+  password: hashedPassword,
+  role,
+  availabilityFor: role === "jobseeker" ? availabilityFor : undefined,
+  companyName,
+  website,
     linkedin,
 
     isVerified:

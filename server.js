@@ -44,12 +44,6 @@ const employerRoutes =
 const reportRoutes =
   require("./routes/reports");
 
-const workerRoutes =
-  require("./routes/workers");
-
-const serviceRequestRoutes =
-  require("./routes/servicerequests");
-
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -165,16 +159,6 @@ app.use(
 app.use(
   "/api/reports",
   reportRoutes
-);
-
-app.use(
-  "/api/workers",
-  workerRoutes
-);
-
-app.use(
-  "/api/servicerequests",
-  serviceRequestRoutes
 );
 
 // ==============================

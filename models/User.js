@@ -115,13 +115,6 @@ const userSchema =
       workerRejectionReason: {
         type: String,
         trim: true,
-        {
-          type: String,
-        },
-      ],
-      workerRejectionReason: {
-        type: String,
-        trim: true,
       },
 
 
