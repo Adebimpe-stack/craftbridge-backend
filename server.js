@@ -55,8 +55,6 @@ const serviceRequestRoutes =
 // Security Headers
 app.use(helmet());
 
-app.use(express.json());
-
 app.use(
 
   cors({
@@ -81,6 +79,8 @@ app.use(
 
 );
 
+app.use(express.json());
+
 // Rate Limiting for Auth Routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -89,11 +89,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: "Too many requests from this IP, please try again after 15 minutes",
 });
-
-const authRouter = express.Router();
-authRouter.use(cors()); // Apply CORS before the rate limiter for this router
-authRouter.use(authLimiter);
-authRouter.use(authRoutes);
 
 app.use("/api", partnershipRoutes);
 

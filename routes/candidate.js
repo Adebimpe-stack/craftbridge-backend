@@ -165,15 +165,19 @@ req.user.id
     message: "Profile updated",
     user,
   });
-} catch (err) {
-  res.status(500).json({
-    message: err.message,
-  });
-}
-
-
-}
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
 );
+
+
+
+
+
+
 
 
 router.post("/resume-parsed", auth, async (req, res) => {
