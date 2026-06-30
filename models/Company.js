@@ -2,11 +2,18 @@ const mongoose = require("mongoose");
 
 const companySchema = new mongoose.Schema(
   {
+
     name: {
       type: String,
       required: true,
       trim: true,
     },
+
+companyType: {
+  type: String,
+  enum: ["employer", "agency"],
+  default: "employer",
+},
 
     description: {
       type: String,

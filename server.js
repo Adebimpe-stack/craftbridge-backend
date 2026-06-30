@@ -3,6 +3,8 @@ require("dotenv").config();
 const express =
   require("express");
 
+const companyRoutes = require("./routes/companies");
+
 const cors =
   require("cors");
 
@@ -100,6 +102,11 @@ app.use("/api", partnershipRoutes);
 app.use(
   "/api/admin",
   adminRoutes
+);
+
+app.use(
+  "/api/companies",
+  companyRoutes
 );
 
 // ==============================

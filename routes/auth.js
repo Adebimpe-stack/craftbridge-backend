@@ -43,6 +43,7 @@ router.post(
 
     try {
 
+      HEAD
       const {
         name,
         email,
@@ -51,13 +52,30 @@ router.post(
         availabilityFor,
       } = req.body;
 
+
+const {
+  name,
+  email,
+  password,
+  role,
+  companyName,
+  companyType,
+  website,
+  linkedin,
+} = req.body;
+
+console.log(req.body);
+console.log("companyType:", companyType);
+ 7dbcbff (Fix backend syntax errors and stabilize server)
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
       // CHECK EXISTING USER
-      const existingUser =
+
+const existingUser =
         await User.findOne({
           email,
         });
@@ -86,41 +104,54 @@ router.post(
         );
 
       // CREATE USER
-      const user =
-        await User.create({
 
-          name,
+const user =
+  await User.create({
 
-          email,
+    name,
 
-          password:
-            hashedPassword,
+    email,
 
+        HEAD
           role,
           availabilityFor: role === 'jobseeker' ? availabilityFor : undefined,
 
-          isVerified:
-            false,
+    password:
+      hashedPassword
+7dbcbff (Fix backend syntax errors and stabilize server)
 
-        });
+    role,
+
+    companyName,
+
+    website,
+
+    linkedin,
+
+    isVerified:
+      false,
+
+  });
 
 if (role === "employer") {
 
   const company =
-    await Company.create({
 
-      name: name,
+await Company.create({
 
-      owner: user._id,
+  name: companyName,
 
-      teamMembers: [
-        user._id,
-      ],
+  companyType: companyType || "employer",
 
-      createdBy:
-        user._id,
+  owner: user._id,
 
-    });
+  teamMembers: [
+    user._id,
+  ],
+
+  createdBy: user._id,
+
+});
 
   user.companyId =
     company._id;
@@ -131,7 +162,6 @@ if (role === "employer") {
   await user.save();
 
 }
-
 
       // CREATE VERIFICATION TOKEN
       const verificationToken =
@@ -282,10 +312,8 @@ if (role === "employer") {
 
     } catch (error) {
 
-      console.log(
-        "REGISTER ERROR:",
-        error
-      );
+      console.error(error);
+      
 
       return res
         .status(500)

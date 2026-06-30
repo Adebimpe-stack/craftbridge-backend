@@ -33,6 +33,12 @@ const teamInvitationSchema = new mongoose.Schema(
       default: "pending",
     },
 
+token: {
+  type: String,
+  unique: true,
+  sparse: true,
+},
+
     expiresAt: {
       type: Date,
       required: true,

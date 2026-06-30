@@ -41,6 +41,13 @@ console.log("REQ USER:", req.user);
         await User.findById(
           req.user.id
         );
+console.log({
+  email: user.email,
+  isVerified: user.isVerified,
+  isCompanyVerified: user.isCompanyVerified,
+  hasUsedFreeJob: user.hasUsedFreeJob,
+  subscriptionActive: user.subscriptionActive,
+});
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
