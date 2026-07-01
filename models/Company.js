@@ -78,6 +78,12 @@ const companySchema = new mongoose.Schema(
       enum: ["1-10", "11-50", "51-200", "201-500", "500+"],
     },
 
+    companyType: {
+      type: String,
+      enum: ["employer", "agency"],
+      default: "employer",
+    },
+
     location: {
       type: String,
     },
@@ -145,6 +151,11 @@ const companySchema = new mongoose.Schema(
     },
     deletedAt: Date,
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+    reportsReceived: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

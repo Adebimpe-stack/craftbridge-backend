@@ -1,4 +1,4 @@
-kkconst User = require("../models/User");
+const User = require("../models/User");
 
 const subscription = async (req, res, next) => {
   try {
@@ -11,9 +11,12 @@ const subscription = async (req, res, next) => {
     const now = new Date();
 
     const isSubscribed =
-      user.subscription?.isActive &&
-      user.subscription?.expiresAt &&
-      new Date(user.subscription.expiresAt) > now;
+      (user.subscription?.isActive &&
+        user.subscription?.expiresAt &&
+        new Date(user.subscription.expiresAt) > now) ||
+      (user.subscriptionActive &&
+        user.subscriptionExpiry &&
+        new Date(user.subscriptionExpiry) > now);
 
     req.userData = user;
     req.isSubscribed = isSubscribed;

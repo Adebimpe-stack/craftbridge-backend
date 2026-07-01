@@ -115,14 +115,7 @@ const userSchema =
       workerRejectionReason: {
         type: String,
         trim: true,
-        {
-          type: String,
         },
-      ],
-      workerRejectionReason: {
-        type: String,
-        trim: true,
-      },
 
 
 
@@ -158,9 +151,13 @@ availability: {
   default: "available",
 },
 
-profileImage: {
-  type: String,
-},
+      profileImage: {
+        type: String,
+      },
+
+      location: {
+        type: String,
+      },
 
 resumeText: {
   type: String,
@@ -172,6 +169,11 @@ resumeData: {
 
       resume: {
         type: String,
+      },
+
+      resumeUrl: {
+        type: String,
+        default: "",
       },
 
       profilePicture: {
@@ -216,6 +218,11 @@ suspensionReason: {
   trim: true,
   default: "",
 },
+accountStatus: {
+  type: String,
+  enum: ["active", "suspended"],
+  default: "active",
+},
 companyId: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Company",
@@ -247,6 +254,23 @@ companyRole: {
 
       subscriptionExpiry: {
         type: Date,
+      },
+
+      subscription: {
+        plan: {
+          type: String,
+          default: "",
+        },
+        isActive: {
+          type: Boolean,
+          default: false,
+        },
+        startDate: {
+          type: Date,
+        },
+        expiresAt: {
+          type: Date,
+        },
       },
 
       // ==============================

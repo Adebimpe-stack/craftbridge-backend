@@ -28,6 +28,13 @@ module.exports =
       const token =
         authHeader.split(" ")[1];
 
+      if (!token) {
+        return res.status(401).json({
+          message:
+            "No token provided",
+        });
+      }
+
       // VERIFY TOKEN
       const decoded =
         jwt.verify(
