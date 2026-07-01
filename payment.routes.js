@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 
-const auth = require("../middleware/auth");
+const auth = require("./middleware/auth");
 
 // INIT PAYMENT
 router.post("/payments/paystack/init", auth, async (req, res) => {

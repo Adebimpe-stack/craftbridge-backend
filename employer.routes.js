@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 // middleware auth (your JWT middleware)
-const auth = require("../middleware/auth");
+const auth = require("./middleware/auth");
 
 // GET SUBSCRIPTION STATUS
 router.get("/employer/subscription-status", auth, async (req, res) => {

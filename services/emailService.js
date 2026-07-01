@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   host: process.env.ZEPTO_HOST,
@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendVerificationEmail = async (
+const sendVerificationEmail = async (
   email,
   token
 ) => {
@@ -51,7 +51,7 @@ export const sendVerificationEmail = async (
   });
 };
 
-export const sendResetPasswordEmail = async (
+const sendResetPasswordEmail = async (
   email,
   token
 ) => {
@@ -89,4 +89,9 @@ export const sendResetPasswordEmail = async (
       </div>
     `,
   });
+};
+
+module.exports = {
+  sendVerificationEmail,
+  sendResetPasswordEmail,
 };

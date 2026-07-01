@@ -170,10 +170,10 @@ router.put(
 );
 
 // =======================
-// VERIFY EMPLOYER (COMPANY)
+// VERIFY COMPANY
 // =======================
 router.put(
-  "/employers/:id/verify",
+  "/companies/:id/verify",
   auth,
   requireRole("admin"),
   async (req, res) => {

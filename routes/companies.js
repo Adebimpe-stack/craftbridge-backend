@@ -7,6 +7,28 @@ const TeamInvitation = require("../models/TeamInvitation");
 const { body, validationResult } = require("express-validator");
 
 // =========================
+// GET PENDING INVITATIONS FOR USER
+// =========================
+router.get("/invitations/pending", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const invitations = await TeamInvitation.find({
+      email: user.email,
+      status: "pending",
+      expiresAt: { $gt: new Date() }
+    })
+    .populate("company", "name logo")
+    .populate("invitedBy", "name");
+
+    res.json(invitations);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
 // GET COMPANY + ITS JOBS
 // =========================
 router.get("/:id/jobs", async (req, res) => {
@@ -275,28 +297,6 @@ router.post("/invitations/:id/accept", auth, async (req, res) => {
       message: "Invitation accepted successfully",
       company
     });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message
-    });
-  }
-});
-
-// =========================
-// GET PENDING INVITATIONS FOR USER
-// =========================
-router.get("/invitations/pending", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    const invitations = await TeamInvitation.find({
-      email: user.email,
-      status: "pending",
-      expiresAt: { $gt: new Date() }
-    })
-    .populate("company", "name logo")
-    .populate("invitedBy", "name");
-
-    res.json(invitations);
   } catch (err) {
     res.status(500).json({
       message: err.message
