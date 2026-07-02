@@ -192,6 +192,10 @@ router.put(
       } else if (status === "rejected") {
         company.verificationStatus = "rejected";
         company.rejectionReason = reason || "No reason provided.";
+      } else if (status === "suspended") {
+        // Handled below by updating the owner's accountStatus
+      } else if (status === "unsuspend") {
+        // Handled below by updating the owner's accountStatus
       } else {
         return res.status(400).json({ message: "Invalid status provided." });
       }
@@ -205,7 +209,7 @@ router.put(
           owner.accountStatus = "suspended";
           owner.suspensionReason = reason || "Company suspended by admin.";
           await owner.save();
-        } else if (owner.accountStatus === "suspended" && status !== "suspended") {
+        } else if (status === "unsuspend" && owner.accountStatus === "suspended") {
           owner.accountStatus = "active";
           owner.suspensionReason = "";
           await owner.save();
