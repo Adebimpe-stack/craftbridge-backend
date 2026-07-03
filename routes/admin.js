@@ -14,8 +14,51 @@ const Company = require("../models/Company");
 // =======================
 router.get("/users", auth, requireRole("admin"), async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
     res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET SINGLE USER (profile + company)
+// =======================
+router.get("/users/:id", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const obj = user.toObject();
+    if (user.companyId) {
+      const company = await Company.findById(user.companyId)
+        .select("name verificationStatus verificationDocuments rejectionReason subscriptionActive subscriptionPlan businessType");
+      if (company) obj.company = company;
+    }
+    res.json(obj);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET USER ACTIVITY
+// =======================
+router.get("/users/:id/activity", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const Application = require("../models/Application") || null;
+    let jobsPosted = 0, applications = 0;
+
+    if (user.companyId) {
+      jobsPosted = await Job.countDocuments({ companyId: user.companyId });
+    }
+    if (Application) {
+      applications = await Application.countDocuments({ user: user._id });
+    }
+
+    res.json({ jobsPosted, applications });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
