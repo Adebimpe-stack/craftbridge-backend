@@ -418,10 +418,13 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Worker not found" });
 
-    const normalised = status === "unverified" ? "none" : status;
-    const updateFields = { workerVerificationStatus: normalised };
-    if (normalised === "verified") updateFields.workerRejectionReason = "";
-    if (normalised === "rejected") updateFields.workerRejectionReason = reason || "";
+    const allowed = ["none", "pending", "verified", "rejected"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: `Invalid status: ${status}` });
+    }
+    const updateFields = { workerVerificationStatus: status };
+    if (status === "verified") updateFields.workerRejectionReason = "";
+    if (status === "rejected") updateFields.workerRejectionReason = reason || "";
 
     await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
     res.json({ message: `Worker ${status} successfully` });
@@ -451,6 +454,30 @@ router.put("/jobs/:id/unsuspend", auth, requireRole("admin"), async (req, res) =
     const job = await Job.findByIdAndUpdate(req.params.id, { status: "active" }, { new: true });
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job unsuspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// ONE-TIME MIGRATION: rewrite legacy "unverified" -> "none"
+// Call once then it is safe to call repeatedly (idempotent)
+// =======================
+router.post("/migrate/fix-verification-status", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const wvsResult = await User.updateMany(
+      { workerVerificationStatus: "unverified" },
+      { $set: { workerVerificationStatus: "none" } }
+    );
+    const vsResult = await User.updateMany(
+      { verificationStatus: "unverified" },
+      { $set: { verificationStatus: "pending" } }
+    );
+    res.json({
+      message: "Migration complete",
+      workerVerificationStatusFixed: wvsResult.modifiedCount,
+      verificationStatusFixed: vsResult.modifiedCount,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
