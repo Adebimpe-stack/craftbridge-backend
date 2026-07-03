@@ -177,14 +177,32 @@ if (
 
 }
 
-      await user.save();
+      const profileUpdateFields = {
+        companyName: user.companyName,
+        email: user.email,
+        phone: user.phone,
+        website: user.website,
+        industry: user.industry,
+        companySize: user.companySize,
+        location: user.location,
+        description: user.description,
+        cacNumber: user.cacNumber,
+        verificationDocuments: user.verificationDocuments,
+        isCompanyVerified: user.isCompanyVerified,
+        profilePicture: user.profilePicture,
+      };
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user.id,
+        profileUpdateFields,
+        { new: true, runValidators: false }
+      );
 
       res.json({
 
         message:
           "Company profile updated successfully",
 
-        user,
+        user: updatedUser,
 
       });
 
@@ -236,30 +254,11 @@ router.delete(
 
       }
 
-     user.verificationDocuments =
-  [];
-
-      user.isCompanyVerified =
-        false;
-
-      await user.save();
-
-if (
-  user.isCompanyVerified &&
-  (
-    req.files?.profilePicture?.[0] ||
-    req.files?.verificationDocuments ||
-    req.body.companyName !== user.companyName ||
-    req.body.website !== user.website
-  )
-) {
-
-  user.isCompanyVerified = false;
-
-  user.verificationStatus =
-    "pending";
-
-}
+      await User.findByIdAndUpdate(
+        req.user.id,
+        { verificationDocuments: [], isCompanyVerified: false },
+        { runValidators: false }
+      );
 
       res.json({
 
@@ -313,9 +312,11 @@ router.delete(
 
       }
 
-      user.profilePicture = "";
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        req.user.id,
+        { profilePicture: "" },
+        { runValidators: false }
+      );
 
       res.json({
 
