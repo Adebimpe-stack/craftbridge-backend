@@ -171,7 +171,7 @@ verificationDocuments: [
 
       workerVerificationStatus: {
         type: String,
-        enum: ["none", "pending", "verified", "rejected"],
+        enum: ["none", "unverified", "pending", "verified", "rejected"],
         default: "none",
       },
 

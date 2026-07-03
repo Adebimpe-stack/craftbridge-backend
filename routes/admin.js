@@ -428,6 +428,11 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Worker not found" });
 
+    // Normalise legacy value so Mongoose doesn't reject the save
+    if (user.workerVerificationStatus === "unverified") {
+      user.workerVerificationStatus = "none";
+    }
+
     if (status === "verified") {
       user.workerVerificationStatus = "verified";
       user.workerRejectionReason = "";
@@ -436,6 +441,8 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
       user.workerRejectionReason = reason || "";
     } else if (status === "pending") {
       user.workerVerificationStatus = "pending";
+    } else if (status === "none") {
+      user.workerVerificationStatus = "none";
     }
 
     await user.save();
