@@ -294,32 +294,41 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
   try {
     const { status, reason } = req.body;
     const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Employer not found" });
 
-    if (!user) {
-      return res.status(404).json({ message: "Employer not found" });
+    const allowed = ["verified", "rejected", "suspended", "unsuspend"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: `Invalid status: ${status}` });
     }
 
-    let updateFields = {};
+    // Resolve company — prefer companyId, fall back to owner lookup
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    let userUpdate = {};
+    let companyUpdate = null;
 
     if (status === "verified") {
-      updateFields = { isCompanyVerified: true, verificationStatus: "verified", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
-      if (user.companyId) {
-        await Company.findByIdAndUpdate(user.companyId, { verificationStatus: "verified", rejectionReason: "" });
-      }
+      userUpdate = { isCompanyVerified: true, verificationStatus: "verified", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
+      companyUpdate = { verificationStatus: "verified", rejectionReason: "" };
     } else if (status === "rejected") {
-      updateFields = { isCompanyVerified: false, verificationStatus: "rejected", accountStatus: "active", rejectionReason: reason || "" };
-      if (user.companyId) {
-        await Company.findByIdAndUpdate(user.companyId, { verificationStatus: "rejected", rejectionReason: reason || "" });
-      }
+      userUpdate = { isCompanyVerified: false, verificationStatus: "rejected", accountStatus: "active", rejectionReason: reason || "" };
+      companyUpdate = { verificationStatus: "rejected", rejectionReason: reason || "" };
     } else if (status === "suspended") {
-      updateFields = { accountStatus: "suspended", suspensionReason: reason || "" };
+      userUpdate = { accountStatus: "suspended", suspensionReason: reason || "" };
     } else if (status === "unsuspend") {
-      updateFields = { accountStatus: "active", suspensionReason: "" };
-    } else {
-      return res.status(400).json({ message: "Invalid status value" });
+      userUpdate = { accountStatus: "active", suspensionReason: "" };
     }
 
-    await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
+    await User.findByIdAndUpdate(req.params.id, userUpdate, { runValidators: false });
+
+    if (companyUpdate && company) {
+      await Company.findByIdAndUpdate(company._id, companyUpdate, { runValidators: false });
+    } else if (companyUpdate && !company) {
+      console.warn(`employers/:id/status — no Company found for user ${req.params.id}`);
+    }
+
     res.json({ message: `Employer ${status} successfully` });
   } catch (err) {
     console.error("employers/:id/status error:", err.message);
