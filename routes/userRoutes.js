@@ -424,49 +424,23 @@ router.put(
         });
       }
 
-const { status, reason } = req.body;
+      const { status, reason } = req.body;
+      let updateFields = {};
 
-if (status === "verified") {
+      if (status === "verified") {
+        updateFields = { isCompanyVerified: true, verificationStatus: "verified", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
+      } else if (status === "rejected") {
+        updateFields = { isCompanyVerified: false, verificationStatus: "rejected", accountStatus: "active", rejectionReason: reason || "" };
+      } else if (status === "suspended") {
+        updateFields = { accountStatus: "suspended", suspensionReason: reason || "" };
+      } else if (status === "unsuspend") {
+        updateFields = { accountStatus: "active", suspensionReason: "" };
+      } else {
+        updateFields = { isCompanyVerified: false, verificationStatus: "pending", accountStatus: "active" };
+      }
 
-  user.isCompanyVerified = true;
-  user.verificationStatus = "verified";
-  user.accountStatus = "active";
-
-  user.rejectionReason = "";
-  user.suspensionReason = "";
-
-} else if (status === "rejected") {
-
-  user.isCompanyVerified = false;
-  user.verificationStatus = "rejected";
-  user.accountStatus = "active";
-
-  user.rejectionReason = reason || "";
-
-} else if (status === "suspended") {
-
-  user.accountStatus = "suspended";
-
-  user.suspensionReason = reason || "";
-
-} else if (status === "unsuspend") {
-
-  user.accountStatus = "active";
-
-  user.suspensionReason = "";
-
-} else {
-
-  user.isCompanyVerified = false;
-  user.verificationStatus = "pending";
-  user.accountStatus = "active";
-
-}
-
-await user.save();
-      res.json({
-        message: `Employer ${status} successfully`,
-      });
+      await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
+      res.json({ message: `Employer ${status} successfully` });
 
     } catch (error) {
 
@@ -647,10 +621,8 @@ router.put(
 // ==============================
 router.put("/deactivate-account", protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByIdAndUpdate(req.user.id, { accountStatus: "deactivated" }, { runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
-    user.accountStatus = "deactivated";
-    await user.save();
     res.json({ message: "Account deactivated" });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -188,10 +188,7 @@ router.put(
 
       }
 
-      employer.isCompanyVerified =
-        true;
-
-      await employer.save();
+      await User.findByIdAndUpdate(req.params.id, { isCompanyVerified: true }, { runValidators: false });
 
       res.json({
         message:
