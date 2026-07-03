@@ -13,6 +13,9 @@ const Job =
 const User =
   require("../models/User");
 
+const Company =
+  require("../models/Company");
+
 const auth =
   require("../middleware/auth");
 
@@ -91,24 +94,32 @@ console.log("REQ USER:", req.user);
       }
 
       // =========================
-      // FREE JOB + SUBSCRIPTION
+      // COMPANY JOB POSTING LIMITS
       // =========================
 
-      if (
-
-        user.hasUsedFreeJob &&
-
-        !user.subscriptionActive
-
-      ) {
-
-        return res.status(403).json({
-
-          message:
-            "Subscription required to post another job",
-
+      const company = await Company.findById(user.companyId);
+      if (!company) {
+        return res.status(404).json({
+          message: "Company not found"
         });
+      }
 
+      // Check job posting limits based on subscription plan
+      const jobLimits = {
+        free: 1,
+        basic: 10,
+        premium: -1 // -1 means unlimited
+      };
+
+      const maxJobs = jobLimits[company.subscriptionPlan] || 1;
+
+      // Enforce limit if not unlimited and subscription not active
+      if (maxJobs !== -1 && !company.subscriptionActive) {
+        if (company.jobsPosted >= maxJobs) {
+          return res.status(403).json({
+            message: `Your ${company.subscriptionPlan} plan allows ${maxJobs} job posting(s). Please upgrade to post more jobs.`
+          });
+        }
       }
 
 const newJob =
@@ -165,19 +176,11 @@ const newJob =
         await newJob.save();
 
       // =========================
-      // MARK FREE JOB AS USED
+      // INCREMENT COMPANY JOB COUNT
       // =========================
 
-      if (
-        !user.hasUsedFreeJob
-      ) {
-
-        user.hasUsedFreeJob =
-          true;
-
-        await user.save();
-
-      }
+      company.jobsPosted = (company.jobsPosted || 0) + 1;
+      await company.save();
 
 
 res.status(201).json(
@@ -471,6 +474,13 @@ if (
 }
 
 await job.deleteOne();
+
+// Decrement company job count
+const company = await Company.findById(job.companyId);
+if (company) {
+  company.jobsPosted = Math.max(0, (company.jobsPosted || 0) - 1);
+  await company.save();
+}
 
 res.json({
   message:

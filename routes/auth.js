@@ -1,26 +1,12 @@
-const express =
-  require("express");
-
-const Company =
-  require("../models/Company");
-
-const bcrypt =
-  require("bcryptjs");
-
-const jwt =
-  require("jsonwebtoken");
-
-const crypto =
-  require("crypto");
-
-const router =
-  express.Router();
-
-const User =
-  require("../models/User");
-
-const sendEmail =
-  require("../utils/sendEmail");
+const express = require("express");
+const Company = require("../models/Company");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const router = express.Router();
+const User = require("../models/User");
+const TeamInvitation = require("../models/TeamInvitation");
+const sendEmail = require("../utils/sendEmail");
 
 
 
@@ -40,6 +26,7 @@ router.post(
         email,
         password,
         role,
+        invitationToken,
       } = req.body;
 
       // CHECK EXISTING USER
@@ -71,6 +58,22 @@ router.post(
           salt
         );
 
+      // Check if registering with invitation token
+      let invitation = null;
+      if (invitationToken) {
+        invitation = await TeamInvitation.findOne({ token: invitationToken });
+        if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
+          return res.status(400).json({
+            message: "Invalid or expired invitation token"
+          });
+        }
+        if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+          return res.status(400).json({
+            message: "Invitation email does not match registration email"
+          });
+        }
+      }
+
       // CREATE USER
       const user =
         await User.create({
@@ -82,40 +85,58 @@ router.post(
           password:
             hashedPassword,
 
-          role,
+          role: invitation ? "employer" : (role || "jobseeker"),
 
           isVerified:
             false,
 
         });
 
-if (role === "employer") {
+      // If registering via invitation, join the company
+      if (invitation) {
+        user.companyId = invitation.company;
+        user.companyRole = invitation.role;
+        user.role = "employer";
+        await user.save();
 
-  const company =
-    await Company.create({
+        // Update company team members
+        const company = await Company.findById(invitation.company);
+        if (!company.teamMembers.includes(user._id)) {
+          company.teamMembers.push(user._id);
+          await company.save();
+        }
 
-      name: name,
+        // Update invitation status
+        invitation.status = "accepted";
+        invitation.acceptedAt = new Date();
+        await invitation.save();
+      } else if (role === "employer") {
+        // Regular employer registration creates a new company
+        const company =
+          await Company.create({
 
-      owner: user._id,
+            name: name,
 
-      teamMembers: [
-        user._id,
-      ],
+            owner: user._id,
 
-      createdBy:
-        user._id,
+            teamMembers: [
+              user._id,
+            ],
 
-    });
+            createdBy:
+              user._id,
 
-  user.companyId =
-    company._id;
+          });
 
-  user.companyRole =
-    "owner";
+        user.companyId =
+          company._id;
 
-  await user.save();
+        user.companyRole =
+          "owner";
 
-}
+        await user.save();
+
+      }
 
 
       // CREATE VERIFICATION TOKEN
@@ -225,7 +246,7 @@ if (role === "employer") {
                   line-height:1.6;
                 "
               >
-                If you didn’t create a
+                If you didn't create a
                 CraftBridge account,
                 you can safely ignore
                 this email.
@@ -256,14 +277,19 @@ if (role === "employer") {
 
       });
 
+      const response = {
+        message: "Account created successfully. Please check your email to verify your account.",
+      };
+
+      if (invitation) {
+        response.joinedCompany = true;
+        response.companyId = user.companyId;
+        response.companyRole = user.companyRole;
+      }
+
       return res
         .status(201)
-        .json({
-
-          message:
-            "Account created successfully. Please check your email to verify your account.",
-
-        });
+        .json(response);
 
     } catch (error) {
 
@@ -485,15 +511,30 @@ if (user.accountStatus === "suspended") {
         userResponse.companyRole = user.companyRole;
       }
 
+      // Check for pending invitations
+      let pendingInvitations = [];
+      if (!user.companyId) {
+        pendingInvitations = await TeamInvitation.find({
+          email: user.email,
+          status: "pending",
+          expiresAt: { $gt: new Date() }
+        })
+        .populate("company", "name logo")
+        .populate("invitedBy", "name");
+      }
+
+      const response = {
+        token,
+        user: userResponse,
+      };
+
+      if (pendingInvitations.length > 0) {
+        response.pendingInvitations = pendingInvitations;
+      }
+
       return res
         .status(200)
-        .json({
-
-          token,
-
-          user: userResponse,
-
-        });
+        .json(response);
 
     } catch (error) {
 

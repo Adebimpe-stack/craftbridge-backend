@@ -225,7 +225,7 @@ router.post("/:id/invite", auth, async (req, res) => {
         companyName: company.name,
         inviterName: user.name,
         role: role,
-        invitationId: invitation._id,
+        token: invitation.token,
         expiryDate: invitation.expiresAt.toLocaleDateString(),
       });
 
@@ -251,7 +251,131 @@ router.post("/:id/invite", auth, async (req, res) => {
 });
 
 // =========================
-// ACCEPT TEAM INVITATION
+// GET INVITATION BY TOKEN (PUBLIC)
+// =========================
+router.get("/invite/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await TeamInvitation.findOne({ token })
+      .populate("company", "name logo")
+      .populate("invitedBy", "name");
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: `Invitation is ${invitation.status}`
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save();
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: invitation.email });
+
+    res.json({
+      valid: true,
+      invitation: {
+        email: invitation.email,
+        companyName: invitation.company.name,
+        companyLogo: invitation.company.logo,
+        role: invitation.role,
+        invitedBy: invitation.invitedBy.name,
+        expiresAt: invitation.expiresAt,
+      },
+      userExists: !!existingUser,
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
+// ACCEPT TEAM INVITATION BY TOKEN
+// =========================
+router.post("/invite/:token/accept", auth, async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await TeamInvitation.findOne({ token });
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: "Invitation is no longer valid"
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save();
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      return res.status(403).json({
+        message: "This invitation is not for your email"
+      });
+    }
+
+    if (user.companyId) {
+      return res.status(400).json({
+        message: "You already belong to a company"
+      });
+    }
+
+    // Update user
+    user.companyId = invitation.company;
+    user.companyRole = invitation.role;
+    user.role = "employer";
+    await user.save();
+
+    // Update company team members
+    const company = await Company.findById(invitation.company);
+    if (!company.teamMembers.includes(user._id)) {
+      company.teamMembers.push(user._id);
+      await company.save();
+    }
+
+    // Update invitation
+    invitation.status = "accepted";
+    invitation.acceptedAt = new Date();
+    await invitation.save();
+
+    res.json({
+      message: "Invitation accepted successfully",
+      company
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
+// ACCEPT TEAM INVITATION (LEGACY - BY ID)
 // =========================
 router.post("/invitations/:id/accept", auth, async (req, res) => {
   try {
@@ -398,7 +522,7 @@ router.post("/:id/invitations/:invitationId/resend", auth, async (req, res) => {
         companyName: company.name,
         inviterName: user.name,
         role: invitation.role,
-        invitationId: invitation._id,
+        token: invitation.token,
         expiryDate: invitation.expiresAt.toLocaleDateString(),
       });
 

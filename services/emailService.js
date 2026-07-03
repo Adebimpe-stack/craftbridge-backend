@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   host: process.env.ZEPTO_HOST,
@@ -11,18 +11,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendVerificationEmail = async (
-  email,
-  token
-) => {
-
-  const verifyLink =
-    `https://craftbridgejobs.com/verify-email?token=${token}`;
+const sendVerificationEmail = async (email, token) => {
+  const verifyLink = `https://craftbridgejobs.com/verify-email?token=${token}`;
 
   await transporter.sendMail({
     from: `"CraftBridge Jobs" <${process.env.ZEPTO_EMAIL}>`,
     to: email,
-    subject: "Verify Your Email",
+    subject: "Verify Your CraftBridge Jobs Account",
 
     html: `
       <div style="font-family:sans-serif;">
@@ -51,13 +46,8 @@ export const sendVerificationEmail = async (
   });
 };
 
-export const sendResetPasswordEmail = async (
-  email,
-  token
-) => {
-
-  const resetLink =
-    `https://craftbridgejobs.com/reset-password?token=${token}`;
+const sendResetPasswordEmail = async (email, token) => {
+  const resetLink = `https://craftbridgejobs.com/reset-password?token=${token}`;
 
   await transporter.sendMail({
     from: `"CraftBridge Jobs" <${process.env.ZEPTO_EMAIL}>`,
@@ -91,25 +81,25 @@ export const sendResetPasswordEmail = async (
   });
 };
 
-export const sendInvitationEmail = async ({
+const sendInvitationEmail = async ({
   to,
   companyName,
   inviterName,
   role,
-  invitationId,
+  token,
   expiryDate,
 }) => {
   try {
-    const acceptLink = `https://craftbridgejobs.com/accept-invitation/${invitationId}`;
+    const acceptLink = `https://craftbridgejobs.com/invite/${token}`;
 
     const info = await transporter.sendMail({
       from: `"CraftBridge Jobs" <${process.env.ZEPTO_EMAIL}>`,
       to,
-      subject: `You're invited to join ${companyName}`,
+      subject: `You're invited to join ${companyName} on CraftBridge Jobs`,
 
       html: `
         <div style="font-family:sans-serif; max-width:600px; margin:0 auto;">
-          <h2 style="color:#166534;">Team Invitation</h2>
+          <h2 style="color:#166534;">You have been invited to join ${companyName} as a ${role} on CraftBridge Jobs.</h2>
 
           <p>
             <strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong> as a <strong>${role}</strong>.
@@ -138,6 +128,10 @@ export const sendInvitationEmail = async ({
           <p style="color:#64748b; font-size:14px;">
             If you didn't expect this invitation, you can safely ignore this email.
           </p>
+
+          <p style="color:#64748b; font-size:12px; margin-top:30px;">
+            Questions? Contact us at <a href="mailto:hire@craftbridgejobs.com" style="color:#166534;">hire@craftbridgejobs.com</a>
+          </p>
         </div>
       `,
     });
@@ -148,4 +142,10 @@ export const sendInvitationEmail = async ({
     console.error("INVITATION EMAIL ERROR:", error);
     return { success: false, error: error.message };
   }
+};
+
+module.exports = {
+  sendVerificationEmail,
+  sendResetPasswordEmail,
+  sendInvitationEmail,
 };

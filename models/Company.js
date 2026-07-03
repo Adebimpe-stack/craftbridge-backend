@@ -77,6 +77,27 @@ const companySchema = new mongoose.Schema(
     cacNumber: {
       type: String,
     },
+
+    // Job posting limits
+    subscriptionPlan: {
+      type: String,
+      enum: ["free", "basic", "premium"],
+      default: "free",
+    },
+
+    jobsPosted: {
+      type: Number,
+      default: 0,
+    },
+
+    subscriptionActive: {
+      type: Boolean,
+      default: false,
+    },
+
+    subscriptionExpiry: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

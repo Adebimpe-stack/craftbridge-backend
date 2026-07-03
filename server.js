@@ -36,6 +36,12 @@ const candidateRoutes =
 const employerRoutes =
   require("./routes/employer");
 
+const companiesRoutes =
+  require("./routes/companies");
+
+const paymentRoutes =
+  require("./payment.routes");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -128,6 +134,13 @@ app.use(
   "/api/employer",
   employerRoutes
 );
+
+app.use(
+  "/api/companies",
+  companiesRoutes
+);
+
+app.use("/api", paymentRoutes);
 
 // ==============================
 // ROOT ROUTE
