@@ -6,6 +6,7 @@ const requireRole = require("../middleware/role");
 
 const User = require("../models/User");
 const Job = require("../models/Job");
+const Company = require("../models/Company");
 
 
 // =======================
@@ -164,5 +165,94 @@ router.put(
 
   }
 );
+
+// =======================
+// GET ALL EMPLOYERS (admin view with company data)
+// =======================
+router.get("/employers", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const employers = await User.find({ role: "employer" })
+      .sort({ createdAt: -1 })
+      .select("-password");
+
+    // Enrich each employer with their Company record data
+    const enriched = await Promise.all(
+      employers.map(async (emp) => {
+        const obj = emp.toObject();
+        if (emp.companyId) {
+          const company = await Company.findById(emp.companyId).select(
+            "name verificationStatus verificationDocuments rejectionReason subscriptionActive subscriptionPlan"
+          );
+          if (company) {
+            obj.companyName = obj.companyName || company.name;
+            obj.verificationStatus = company.verificationStatus;
+            obj.verificationDocuments = company.verificationDocuments || [];
+            obj.rejectionReason = company.rejectionReason || "";
+            obj.subscriptionActive = company.subscriptionActive;
+            obj.subscriptionPlan = company.subscriptionPlan;
+          }
+        }
+        return obj;
+      })
+    );
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// UPDATE EMPLOYER STATUS (verify / reject / suspend / unsuspend)
+// =======================
+router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { status, reason } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "Employer not found" });
+    }
+
+    if (status === "verified") {
+      user.isCompanyVerified = true;
+      user.verificationStatus = "verified";
+      user.accountStatus = "active";
+      user.rejectionReason = "";
+      user.suspensionReason = "";
+
+      // Mirror onto Company record
+      if (user.companyId) {
+        await Company.findByIdAndUpdate(user.companyId, {
+          verificationStatus: "verified",
+          rejectionReason: "",
+        });
+      }
+    } else if (status === "rejected") {
+      user.isCompanyVerified = false;
+      user.verificationStatus = "rejected";
+      user.accountStatus = "active";
+      user.rejectionReason = reason || "";
+
+      if (user.companyId) {
+        await Company.findByIdAndUpdate(user.companyId, {
+          verificationStatus: "rejected",
+          rejectionReason: reason || "",
+        });
+      }
+    } else if (status === "suspended") {
+      user.accountStatus = "suspended";
+      user.suspensionReason = reason || "";
+    } else if (status === "unsuspend") {
+      user.accountStatus = "active";
+      user.suspensionReason = "";
+    }
+
+    await user.save();
+    res.json({ message: `Employer ${status} successfully` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 module.exports = router;

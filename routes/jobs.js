@@ -145,6 +145,8 @@ const newJob =
     createdBy:
       user._id,
 
+    isPriority: company.subscriptionActive === true,
+
   });
 
       const savedJob =
@@ -187,13 +189,27 @@ router.get(
 
     try {
 
-      const jobs =
-        await Job.find()
-          .sort({
-            createdAt: -1,
-          });
+      const jobs = await Job.find({ status: "active" })
+        .sort({ isPriority: -1, createdAt: -1 });
 
-      res.json(jobs);
+      // Enrich with company verification/subscription info for badges
+      const enriched = await Promise.all(
+        jobs.map(async (job) => {
+          const obj = job.toObject();
+          if (job.companyId) {
+            const company = await Company.findById(job.companyId)
+              .select("verificationStatus subscriptionActive name");
+            if (company) {
+              obj.companyVerified = company.verificationStatus === "verified";
+              obj.companySubscribed = company.subscriptionActive === true;
+              obj.companyName = obj.companyName || company.name;
+            }
+          }
+          return obj;
+        })
+      );
+
+      res.json(enriched);
 
     } catch (error) {
 
@@ -402,6 +418,56 @@ res.json({
 }
 
 }
+);
+
+// =========================
+// CLOSE JOB (POST — used by Dashboard)
+// =========================
+
+router.post(
+  "/:id/close",
+  auth,
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.id);
+      if (!job) return res.status(404).json({ message: "Job not found" });
+
+      if (job.companyId.toString() !== req.user.companyId?.toString()) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      job.status = "closed";
+      await job.save();
+      res.json({ message: "Job closed successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// =========================
+// REOPEN JOB (POST — used by Dashboard)
+// =========================
+
+router.post(
+  "/:id/reopen",
+  auth,
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.id);
+      if (!job) return res.status(404).json({ message: "Job not found" });
+
+      if (job.companyId.toString() !== req.user.companyId?.toString()) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      job.status = "active";
+      await job.save();
+      res.json({ message: "Job reopened successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  }
 );
 
 // =========================

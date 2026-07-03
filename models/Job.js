@@ -119,6 +119,11 @@ const jobSchema = new mongoose.Schema(
         ref: "Application",
       },
     ],
+
+    isPriority: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
