@@ -642,5 +642,20 @@ router.put(
 
   }
 );
+// ==============================
+// SELF-DEACTIVATE ACCOUNT
+// ==============================
+router.put("/deactivate-account", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.accountStatus = "deactivated";
+    await user.save();
+    res.json({ message: "Account deactivated" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports =
   router;

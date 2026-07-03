@@ -53,17 +53,17 @@ if (!user) {
 
 }
 
-// ACCOUNT SUSPENDED
-if (
-  user.accountStatus ===
-  "suspended"
-) {
-
+// ACCOUNT SUSPENDED OR DEACTIVATED
+if (user.accountStatus === "suspended") {
   return res.status(403).json({
-    message:
-      "Your account has been suspended.",
+    message: "Your account has been suspended. Please contact support.",
   });
+}
 
+if (user.accountStatus === "deactivated") {
+  return res.status(403).json({
+    message: "Your account has been deactivated.",
+  });
 }
       // ATTACH USER
       req.user = user;
