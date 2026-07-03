@@ -167,6 +167,34 @@ router.put(
 );
 
 // =======================
+// GRANT SUBSCRIPTION MANUALLY (admin use for confirmed payments)
+// =======================
+router.post("/grant-subscription", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 30);
+
+    await User.findByIdAndUpdate(user._id, { subscriptionActive: true });
+
+    if (user.companyId) {
+      await Company.findByIdAndUpdate(user.companyId, {
+        subscriptionActive: true,
+        subscriptionPlan: "premium",
+        subscriptionExpiry: expiry,
+      });
+    }
+
+    res.json({ message: `Subscription activated for ${email}` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // GET ALL EMPLOYERS (admin view with company data)
 // =======================
 router.get("/employers", auth, requireRole("admin"), async (req, res) => {
