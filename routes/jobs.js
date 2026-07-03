@@ -27,36 +27,19 @@ router.post(
   "/",
   auth,
   async (req, res) => {
-console.log("REQ USER:", req.user);
 
     try {
 
-      const user =
-        await User.findById(
-          req.user.id
-        );
-
-      if (!user) {
-
-        return res.status(404).json({
-          message:
-            "User not found",
-        });
-
-      }
+      const user = req.user;
 
       // =========================
       // ONLY EMPLOYERS
       // =========================
 
-      if (
-        user.role !==
-        "employer"
-      ) {
+      if (user.role !== "employer") {
 
         return res.status(403).json({
-          message:
-            "Only employers can post jobs",
+          message: "Only employers can post jobs",
         });
 
       }
@@ -65,30 +48,22 @@ console.log("REQ USER:", req.user);
       // EMAIL VERIFIED ONLY
       // =========================
 
-      if (
-        !user.isVerified
-      ) {
+      if (!user.isVerified) {
 
         return res.status(403).json({
-          message:
-            "Please verify your email before posting jobs",
+          message: "Please verify your email before posting jobs",
         });
 
       }
 
       // =========================
-      // COMPANY VERIFICATION
+      // COMPANY VERIFICATION (admin must verify)
       // =========================
 
-      if (
-        !user.isCompanyVerified
-      ) {
+      if (!user.isCompanyVerified) {
 
         return res.status(403).json({
-
-          message:
-            "Your company is pending verification by admin",
-
+          message: "Your account must be verified by admin before posting jobs.",
         });
 
       }

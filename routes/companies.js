@@ -186,6 +186,13 @@ router.post("/:id/invite", auth, async (req, res) => {
       });
     }
 
+    // Subscription required for team management
+    if (!company.subscriptionActive) {
+      return res.status(403).json({
+        message: "An active subscription is required to invite team members. Please upgrade your plan."
+      });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {

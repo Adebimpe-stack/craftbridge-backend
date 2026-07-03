@@ -41,7 +41,7 @@ module.exports =
 const user =
   await User.findById(
     decoded.id
-  ).select("_id name email role companyId companyRole accountStatus isVerified");
+  ).select("_id name email role companyId companyRole accountStatus isVerified isCompanyVerified subscriptionActive");
 
 // USER REMOVED
 if (!user) {

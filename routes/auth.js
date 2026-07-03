@@ -511,16 +511,26 @@ if (user.accountStatus === "suspended") {
         userResponse.companyRole = user.companyRole;
       }
 
-      // Check for pending invitations
+      // Check for pending invitations — with 2s timeout to never block login
       let pendingInvitations = [];
       if (!user.companyId) {
-        pendingInvitations = await TeamInvitation.find({
-          email: user.email,
-          status: "pending",
-          expiresAt: { $gt: new Date() }
-        })
-        .populate("company", "name logo")
-        .populate("invitedBy", "name");
+        try {
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 2000)
+          );
+          pendingInvitations = await Promise.race([
+            TeamInvitation.find({
+              email: user.email,
+              status: "pending",
+              expiresAt: { $gt: new Date() }
+            })
+            .populate("company", "name logo")
+            .populate("invitedBy", "name"),
+            timeout
+          ]);
+        } catch (_) {
+          pendingInvitations = [];
+        }
       }
 
       const response = {
