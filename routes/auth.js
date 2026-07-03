@@ -418,8 +418,8 @@ router.post(
       // FIND USER
       const user =
         await User.findOne({
-          email,
-        });
+          email: email.toLowerCase().trim(),
+        }).select("_id name email password role companyId companyRole isVerified accountStatus");
 
       if (!user) {
 

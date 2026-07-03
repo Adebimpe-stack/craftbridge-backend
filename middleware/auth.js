@@ -37,11 +37,11 @@ module.exports =
           process.env.JWT_SECRET
         );
 
-      // FIND USER
+      // FIND USER — select only fields auth middleware needs
 const user =
   await User.findById(
     decoded.id
-  );
+  ).select("_id name email role companyId companyRole accountStatus isVerified");
 
 // USER REMOVED
 if (!user) {
