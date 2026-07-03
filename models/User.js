@@ -164,6 +164,26 @@ verificationDocuments: [
         default: false,
       },
 
+      primaryTrade: {
+        type: String,
+        default: "",
+      },
+
+      workerVerificationStatus: {
+        type: String,
+        enum: ["none", "pending", "verified", "rejected"],
+        default: "none",
+      },
+
+      workerVerificationDocuments: [
+        { type: String },
+      ],
+
+      workerRejectionReason: {
+        type: String,
+        default: "",
+      },
+
       // ==============================
       // EMAIL VERIFICATION
       // ==============================
@@ -204,6 +224,7 @@ accountStatus: {
   enum: [
     "active",
     "suspended",
+    "deactivated",
   ],
   default: "active",
 },

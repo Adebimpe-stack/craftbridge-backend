@@ -189,7 +189,7 @@ router.get(
 
     try {
 
-      const jobs = await Job.find({ status: "active" })
+      const jobs = await Job.find({ status: { $in: ["active"] } })
         .sort({ isPriority: -1, createdAt: -1 });
 
       // Enrich with company verification/subscription info for badges

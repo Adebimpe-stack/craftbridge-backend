@@ -283,4 +283,149 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
   }
 });
 
+// =======================
+// SUSPEND USER
+// =======================
+router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.accountStatus = "suspended";
+    user.suspensionReason = reason || "";
+    await user.save();
+    res.json({ message: "User suspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// UNSUSPEND USER
+// =======================
+router.put("/users/:id/unsuspend", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.accountStatus = "active";
+    user.suspensionReason = "";
+    await user.save();
+    res.json({ message: "User unsuspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// DEACTIVATE USER (soft delete)
+// =======================
+router.put("/users/:id/deactivate", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.accountStatus = "deactivated";
+    await user.save();
+    res.json({ message: "User deactivated" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// REACTIVATE USER
+// =======================
+router.put("/users/:id/reactivate", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.accountStatus = "active";
+    user.suspensionReason = "";
+    await user.save();
+    res.json({ message: "User reactivated" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET WORKERS PENDING VERIFICATION
+// =======================
+router.get("/workers/pending", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const workers = await User.find({
+      role: "jobseeker",
+      workerVerificationStatus: "pending",
+    }).select("-password").sort({ createdAt: -1 });
+    res.json(workers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET ALL WORKERS (for verification management)
+// =======================
+router.get("/workers", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const workers = await User.find({ role: "jobseeker" })
+      .select("-password")
+      .sort({ createdAt: -1 });
+    res.json(workers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// UPDATE WORKER VERIFICATION STATUS
+// =======================
+router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { status, reason } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+
+    if (status === "verified") {
+      user.workerVerificationStatus = "verified";
+      user.workerRejectionReason = "";
+    } else if (status === "rejected") {
+      user.workerVerificationStatus = "rejected";
+      user.workerRejectionReason = reason || "";
+    } else if (status === "pending") {
+      user.workerVerificationStatus = "pending";
+    }
+
+    await user.save();
+    res.json({ message: `Worker ${status} successfully` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// SUSPEND A JOB (admin)
+// =======================
+router.put("/jobs/:id/suspend", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const job = await Job.findByIdAndUpdate(req.params.id, { status: "suspended" }, { new: true });
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    res.json({ message: "Job suspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// UNSUSPEND A JOB (admin)
+// =======================
+router.put("/jobs/:id/unsuspend", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const job = await Job.findByIdAndUpdate(req.params.id, { status: "active" }, { new: true });
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    res.json({ message: "Job unsuspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

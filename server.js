@@ -77,11 +77,6 @@ app.use(
 
 app.use("/api", partnershipRoutes);
 
-app.use(
-  "/api/admin",
-  adminRoutes
-);
-
 // ==============================
 // DATABASE CONNECTION STATE
 // ==============================
@@ -186,6 +181,11 @@ app.use(
 app.use("/api", paymentRoutes);
 
 app.use("/api/service-requests", serviceRequestRoutes);
+
+app.use(
+  "/api/admin",
+  adminRoutes
+);
 
 // ==============================
 // ROOT / HEALTH ROUTES
