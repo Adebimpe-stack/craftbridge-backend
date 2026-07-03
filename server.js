@@ -42,6 +42,9 @@ const companiesRoutes =
 const paymentRoutes =
   require("./payment.routes");
 
+const serviceRequestRoutes =
+  require("./routes/serviceRequests");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -145,6 +148,8 @@ app.use(
 );
 
 app.use("/api", paymentRoutes);
+
+app.use("/api/service-requests", serviceRequestRoutes);
 
 // ==============================
 // ROOT ROUTE
