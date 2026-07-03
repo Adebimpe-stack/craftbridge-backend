@@ -591,13 +591,11 @@ router.put(
 
       }
 
-      user.verificationStatus =
-        "pending";
-
-      user.isCompanyVerified =
-        false;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        req.user.id,
+        { verificationStatus: "pending", isCompanyVerified: false },
+        { runValidators: false }
+      );
 
       res.json({
         message:

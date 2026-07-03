@@ -15,7 +15,24 @@ const Company = require("../models/Company");
 router.get("/users", auth, requireRole("admin"), async (req, res) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.json(users);
+
+    // Enrich employers with their Company verification data
+    const enriched = await Promise.all(users.map(async (u) => {
+      const obj = u.toObject();
+      if (u.role === "employer" && u.companyId) {
+        const company = await Company.findById(u.companyId)
+          .select("verificationStatus verificationDocuments rejectionReason name");
+        if (company) {
+          obj.companyVerificationStatus = company.verificationStatus;
+          obj.companyVerificationDocuments = company.verificationDocuments || [];
+          obj.companyRejectionReason = company.rejectionReason || "";
+          obj.companyName = obj.companyName || company.name;
+        }
+      }
+      return obj;
+    }));
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
