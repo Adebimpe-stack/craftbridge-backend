@@ -415,6 +415,12 @@ router.post(
         password,
       } = req.body;
 
+      if (!email || !password) {
+        return res.status(400).json({
+          message: "Email and password are required.",
+        });
+      }
+
       // FIND USER
       const user =
         await User.findOne({
