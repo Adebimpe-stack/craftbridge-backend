@@ -212,6 +212,8 @@ verificationDocuments: [
      verificationStatus: {
   type: String,
   enum: [
+    "none",
+    "unverified",
     "pending",
     "verified",
     "rejected",

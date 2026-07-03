@@ -285,43 +285,30 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
       return res.status(404).json({ message: "Employer not found" });
     }
 
-    if (status === "verified") {
-      user.isCompanyVerified = true;
-      user.verificationStatus = "verified";
-      user.accountStatus = "active";
-      user.rejectionReason = "";
-      user.suspensionReason = "";
+    let updateFields = {};
 
-      // Mirror onto Company record
+    if (status === "verified") {
+      updateFields = { isCompanyVerified: true, verificationStatus: "verified", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
       if (user.companyId) {
-        await Company.findByIdAndUpdate(user.companyId, {
-          verificationStatus: "verified",
-          rejectionReason: "",
-        });
+        await Company.findByIdAndUpdate(user.companyId, { verificationStatus: "verified", rejectionReason: "" });
       }
     } else if (status === "rejected") {
-      user.isCompanyVerified = false;
-      user.verificationStatus = "rejected";
-      user.accountStatus = "active";
-      user.rejectionReason = reason || "";
-
+      updateFields = { isCompanyVerified: false, verificationStatus: "rejected", accountStatus: "active", rejectionReason: reason || "" };
       if (user.companyId) {
-        await Company.findByIdAndUpdate(user.companyId, {
-          verificationStatus: "rejected",
-          rejectionReason: reason || "",
-        });
+        await Company.findByIdAndUpdate(user.companyId, { verificationStatus: "rejected", rejectionReason: reason || "" });
       }
     } else if (status === "suspended") {
-      user.accountStatus = "suspended";
-      user.suspensionReason = reason || "";
+      updateFields = { accountStatus: "suspended", suspensionReason: reason || "" };
     } else if (status === "unsuspend") {
-      user.accountStatus = "active";
-      user.suspensionReason = "";
+      updateFields = { accountStatus: "active", suspensionReason: "" };
+    } else {
+      return res.status(400).json({ message: "Invalid status value" });
     }
 
-    await user.save();
+    await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
     res.json({ message: `Employer ${status} successfully` });
   } catch (err) {
+    console.error("employers/:id/status error:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -332,11 +319,8 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
 router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
   try {
     const { reason } = req.body;
-    const user = await User.findById(req.params.id);
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "suspended", suspensionReason: reason || "" }, { new: true, runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
-    user.accountStatus = "suspended";
-    user.suspensionReason = reason || "";
-    await user.save();
     res.json({ message: "User suspended" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -348,11 +332,8 @@ router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) =>
 // =======================
 router.put("/users/:id/unsuspend", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { new: true, runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
-    user.accountStatus = "active";
-    user.suspensionReason = "";
-    await user.save();
     res.json({ message: "User unsuspended" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -364,10 +345,8 @@ router.put("/users/:id/unsuspend", auth, requireRole("admin"), async (req, res) 
 // =======================
 router.put("/users/:id/deactivate", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "deactivated" }, { new: true, runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
-    user.accountStatus = "deactivated";
-    await user.save();
     res.json({ message: "User deactivated" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -379,11 +358,8 @@ router.put("/users/:id/deactivate", auth, requireRole("admin"), async (req, res)
 // =======================
 router.put("/users/:id/reactivate", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { new: true, runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
-    user.accountStatus = "active";
-    user.suspensionReason = "";
-    await user.save();
     res.json({ message: "User reactivated" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -428,24 +404,12 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Worker not found" });
 
-    // Normalise legacy value so Mongoose doesn't reject the save
-    if (user.workerVerificationStatus === "unverified") {
-      user.workerVerificationStatus = "none";
-    }
+    const normalised = status === "unverified" ? "none" : status;
+    const updateFields = { workerVerificationStatus: normalised };
+    if (normalised === "verified") updateFields.workerRejectionReason = "";
+    if (normalised === "rejected") updateFields.workerRejectionReason = reason || "";
 
-    if (status === "verified") {
-      user.workerVerificationStatus = "verified";
-      user.workerRejectionReason = "";
-    } else if (status === "rejected") {
-      user.workerVerificationStatus = "rejected";
-      user.workerRejectionReason = reason || "";
-    } else if (status === "pending") {
-      user.workerVerificationStatus = "pending";
-    } else if (status === "none") {
-      user.workerVerificationStatus = "none";
-    }
-
-    await user.save();
+    await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
     res.json({ message: `Worker ${status} successfully` });
   } catch (err) {
     res.status(500).json({ message: err.message });
