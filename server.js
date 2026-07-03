@@ -83,35 +83,70 @@ app.use(
 );
 
 // ==============================
-// DATABASE CONNECTION
+// DATABASE CONNECTION STATE
 // ==============================
 
-mongoose.connect(
+let dbReady = false;
 
-  process.env.MONGO_URI,
-  {
-    serverSelectionTimeoutMS: 30000,
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
+// Mongoose connection event listeners
+mongoose.connection.on("connected", () => {
+  dbReady = true;
+  console.log("MongoDB Connected ✅");
+});
+
+mongoose.connection.on("disconnected", () => {
+  dbReady = false;
+  console.log("MongoDB Disconnected ⚠️ — will retry...");
+});
+
+mongoose.connection.on("error", (err) => {
+  dbReady = false;
+  console.log("MongoDB connection error:", err.message);
+});
+
+// Retry connect with exponential backoff
+async function connectWithRetry(attempt = 1) {
+  const maxAttempts = 10;
+  const baseDelay = 3000;
+
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
+      socketTimeoutMS: 45000,
+      heartbeatFrequencyMS: 10000,
+      family: 4, // Force IPv4 — avoids EAI_AGAIN on some VPS DNS configs
+    });
+  } catch (err) {
+    console.log(`MongoDB connect attempt ${attempt} failed: ${err.message}`);
+    if (attempt < maxAttempts) {
+      const delay = Math.min(baseDelay * attempt, 30000);
+      console.log(`Retrying in ${delay / 1000}s...`);
+      setTimeout(() => connectWithRetry(attempt + 1), delay);
+    } else {
+      console.log("MongoDB: max retry attempts reached. Server will respond with 503 until DB reconnects.");
+    }
   }
+}
 
-)
+connectWithRetry();
 
-.then(() => {
+// ==============================
+// DB READINESS MIDDLEWARE
+// Immediately return 503 if MongoDB is not connected
+// so requests never hang waiting for a dead DB
+// ==============================
 
-  console.log(
-    "MongoDB Connected ✅"
-  );
+const DB_EXEMPT = ["/", "/api/health"];
 
-})
-
-.catch((err) => {
-
-  console.log(
-    "MongoDB Error:",
-    err
-  );
-
+app.use((req, res, next) => {
+  if (DB_EXEMPT.includes(req.path)) return next();
+  if (!dbReady) {
+    return res.status(503).json({
+      message: "Service temporarily unavailable. Please try again in a moment.",
+    });
+  }
+  next();
 });
 
 // ==============================
@@ -153,44 +188,26 @@ app.use("/api", paymentRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
 
 // ==============================
-// ROOT ROUTE
+// ROOT / HEALTH ROUTES
 // ==============================
 
-app.get(
-  "/",
+app.get("/", (req, res) => {
+  res.json({
+    message: "CraftBridge API Running 🚀",
+    db: dbReady ? "connected" : "disconnected",
+  });
+});
 
-  (req, res) => {
-
-    res.json({
-
-      message:
-        "CraftBridge API Running 🚀",
-
-    });
-
-  }
-
-);
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", db: dbReady ? "connected" : "disconnected" });
+});
 
 // ==============================
 // START SERVER
 // ==============================
 
-const PORT =
-  process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
-app.listen(
-
-  PORT,
-
-  () => {
-
-    console.log(
-
-      `Server running on port ${PORT}`
-
-    );
-
-  }
-
-);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
