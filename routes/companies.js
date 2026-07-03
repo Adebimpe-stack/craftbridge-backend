@@ -677,6 +677,7 @@ router.get("/:id/dashboard", auth, async (req, res) => {
         jobsPosted: company.jobsPosted,
         subscriptionActive: company.subscriptionActive,
         verificationStatus: company.verificationStatus,
+        businessType: company.businessType || "",
       },
       stats: {
         totalJobs,

@@ -60,6 +60,12 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+    // Business type (set at registration)
+    businessType: {
+      type: String,
+      default: "",
+    },
+
     // Company details
     industry: {
       type: String,

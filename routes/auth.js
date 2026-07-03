@@ -27,6 +27,8 @@ router.post(
         password,
         role,
         invitationToken,
+        companyType,
+        companyName,
       } = req.body;
 
       // CHECK EXISTING USER
@@ -115,7 +117,7 @@ router.post(
         const company =
           await Company.create({
 
-            name: name,
+            name: companyName || name,
 
             owner: user._id,
 
@@ -125,6 +127,8 @@ router.post(
 
             createdBy:
               user._id,
+
+            businessType: companyType || "",
 
           });
 
