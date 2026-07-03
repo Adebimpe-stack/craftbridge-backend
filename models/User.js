@@ -98,9 +98,14 @@ const userSchema =
       },
       workerVerificationStatus: {
         type: String,
-        enum: ["unverified", "pending", "verified", "rejected"],
-        default: "unverified",
+        enum: ["none", "pending", "verified", "rejected"],
+        default: "none",
       },
+
+      workerVerificationDocuments: [
+        { type: String },
+      ],
+
       // Flexible, evidence-based verification
       verificationEvidence: [
         {
@@ -115,7 +120,8 @@ const userSchema =
       workerRejectionReason: {
         type: String,
         trim: true,
-        },
+        default: "",
+      },
 
 
 
@@ -213,17 +219,43 @@ resumeData: {
         type: String,
       },
 
-suspensionReason: {
-  type: String,
-  trim: true,
-  default: "",
-},
-accountStatus: {
-  type: String,
-  enum: ["active", "suspended"],
-  default: "active",
-},
-companyId: {
+      // ==============================
+      // EMPLOYER SYSTEM
+      // ==============================
+
+      isCompanyVerified: {
+        type: Boolean,
+        default: false,
+      },
+
+      verificationStatus: {
+        type: String,
+        enum: [
+          "none",
+          "pending",
+          "verified",
+          "rejected",
+        ],
+        default: "pending",
+      },
+
+      accountStatus: {
+        type: String,
+        enum: [
+          "active",
+          "suspended",
+          "deactivated",
+        ],
+        default: "active",
+      },
+
+      rejectionReason: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+
+      companyId: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Company",
 },
