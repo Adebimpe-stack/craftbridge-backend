@@ -42,7 +42,6 @@ router.post("/paystack/webhook", async (req, res) => {
       if (!user) return res.status(404).send("User not found");
 
       // 🔥 30-DAY SUBSCRIPTION ACTIVATION
-<<<<<<< HEAD
       const subscriptionExpiry = new Date(
         Date.now() + 30 * 24 * 60 * 60 * 1000
       );
@@ -62,20 +61,6 @@ router.post("/paystack/webhook", async (req, res) => {
           subscriptionActive: true,
           subscriptionExpiry,
         },
-=======
-      const subscription = {
-        plan: "paid",
-        isActive: true,
-        startDate: new Date(),
-        expiresAt: new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ),
-      };
-
-      await User.findByIdAndUpdate(
-        user._id,
-        { subscription },
->>>>>>> master
         { runValidators: false }
       );
 
