@@ -369,6 +369,55 @@ router.post("/revoke-subscription", auth, requireRole("admin"), async (req, res)
 });
 
 // =======================
+// MIGRATE EMPLOYERS WITHOUT COMPANIES
+// =======================
+router.post("/migrate-employers-to-companies", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const employers = await User.find({
+      role: "employer",
+      $or: [
+        { companyId: { $exists: false } },
+        { companyId: null },
+      ],
+    });
+
+    const created = [];
+    const skipped = [];
+
+    for (const user of employers) {
+      const company = await Company.create({
+        name: user.name || "Unnamed Company",
+        owner: user._id,
+        createdBy: user._id,
+        businessType: user.companyType || "",
+        location: user.location || "",
+        industry: user.industry || "",
+        companySize: user.companySize || "",
+        logo: user.profilePicture || "",
+        website: user.website || "",
+        verificationStatus: user.verificationStatus || "pending",
+      });
+
+      await User.findByIdAndUpdate(
+        user._id,
+        { companyId: company._id, companyRole: "owner" },
+        { runValidators: false }
+      );
+
+      created.push({ email: user.email, companyId: company._id });
+    }
+
+    res.json({
+      message: `Migration complete. ${created.length} companies created, ${skipped.length} skipped.`,
+      created,
+      skipped,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // GET ALL EMPLOYERS (admin view with company data)
 // =======================
 router.get("/employers", auth, requireRole("admin"), async (req, res) => {

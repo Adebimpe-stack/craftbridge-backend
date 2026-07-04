@@ -33,14 +33,42 @@ const optionalAuth = async (req, res, next) => {
 
 // =========================
 // LIST ALL COMPANIES (Public)
+// Includes Company records + employers without a Company record
 // =========================
 router.get("/", async (req, res) => {
   try {
     const companies = await Company.find({}).sort({ createdAt: -1 }).lean();
 
+    // Find employers who don't have a linked Company record yet
+    const employersWithoutCompany = await User.find({
+      role: "employer",
+      $or: [
+        { companyId: { $exists: false } },
+        { companyId: null },
+      ],
+    }).sort({ createdAt: -1 }).lean();
+
+    // Map employers to the same shape as companies
+    const employerCompanies = employersWithoutCompany.map((user) => ({
+      _id: user._id,
+      name: user.name || "Unnamed Company",
+      description: user.description || "",
+      logo: user.profilePicture || "",
+      website: user.website || "",
+      industry: user.industry || "",
+      companySize: user.companySize || "",
+      location: user.location || "",
+      businessType: user.companyType || "",
+      owner: user._id,
+      createdAt: user.createdAt,
+      isEmployerRecord: true,
+    }));
+
+    const allCompanies = [...companies, ...employerCompanies];
+
     // Count active, non-deleted jobs per company
     const companiesWithJobCount = await Promise.all(
-      companies.map(async (company) => {
+      allCompanies.map(async (company) => {
         const jobCount = await Job.countDocuments({
           companyId: company._id,
           status: "active",
@@ -68,15 +96,36 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
   try {
     const companyId = req.params.id;
 
-    const company = await Company.findById(companyId);
+    let company = await Company.findById(companyId);
+    let effectiveCompanyId = companyId;
 
+    // Fallback: employer without a Company record
     if (!company) {
-      return res.status(404).json({
-        message: "Company not found"
+      const employer = await User.findOne({
+        _id: companyId,
+        role: "employer",
       });
+
+      if (employer) {
+        company = {
+          _id: employer._id,
+          name: employer.name || "Unnamed Company",
+          description: employer.description || "",
+          logo: employer.profilePicture || "",
+          website: employer.website || "",
+          industry: employer.industry || "",
+          companySize: employer.companySize || "",
+          location: employer.location || "",
+          businessType: employer.companyType || "",
+        };
+      } else {
+        return res.status(404).json({
+          message: "Company not found"
+        });
+      }
     }
 
-    let query = { companyId: companyId, isDeleted: false };
+    let query = { companyId: effectiveCompanyId, isDeleted: false };
 
     const isCompanyMember =
       req.user &&
