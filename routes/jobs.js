@@ -405,6 +405,10 @@ router.put(
 
       }
 
+      if (job.isDeleted) {
+        return res.status(400).json({ message: "Cannot close a deleted job" });
+      }
+
       // AUTHORIZATION: Verify user is an owner/admin of the company that owns this job.
       const company = await Company.findById(job.companyId);
       if (!company) {
@@ -419,10 +423,7 @@ router.put(
         return res.status(403).json({ message: "Not authorized to close this job" });
       }
 
-job.status =
-  "closed";
-
-await job.save();
+await Job.findByIdAndUpdate(req.params.id, { status: "closed" }, { runValidators: false });
 
 res.json({
   message:
@@ -444,7 +445,89 @@ res.json({
 );
 
 // =========================
-// DELETE JOB
+// CLOSE JOB (POST support)
+// =========================
+router.post("/:id/close", auth, async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    if (job.isDeleted) {
+      return res.status(400).json({ message: "Cannot close a deleted job" });
+    }
+
+    const company = await Company.findById(job.companyId);
+    if (!company) {
+      return res.status(404).json({ message: "Associated company not found" });
+    }
+
+    const user = await User.findById(req.user.id);
+    const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+    const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
+
+    if (!hasPermission) {
+      return res.status(403).json({ message: "Not authorized to close this job" });
+    }
+
+    await Job.findByIdAndUpdate(req.params.id, { status: "closed" }, { runValidators: false });
+
+    res.json({ message: "Job closed successfully" });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// REOPEN JOB (employer)
+// =========================
+
+router.post(
+  "/:id/reopen",
+  auth,
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.id);
+
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      if (job.isDeleted) {
+        return res.status(400).json({ message: "Cannot reopen a deleted job" });
+      }
+
+      // AUTHORIZATION
+      const company = await Company.findById(job.companyId);
+      if (!company) {
+        return res.status(404).json({ message: "Associated company not found" });
+      }
+
+      const user = await User.findById(req.user.id);
+      const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+      const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Not authorized to reopen this job" });
+      }
+
+      await Job.findByIdAndUpdate(req.params.id, { status: "active" }, { runValidators: false });
+
+      res.json({ message: "Job reopened successfully" });
+
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// =========================
+// DELETE JOB (employer soft delete)
 // =========================
 
 router.delete(
@@ -484,7 +567,15 @@ router.delete(
         }
       }
 
-await job.deleteOne();
+await Job.findByIdAndUpdate(
+  req.params.id,
+  {
+    isDeleted: true,
+    deletedAt: new Date(),
+    deletedBy: req.user._id,
+  },
+  { runValidators: false }
+);
 
 res.json({
   message:
@@ -562,6 +653,49 @@ res.json({
         message: "Server error",
       });
 
+    }
+  }
+);
+
+// =========================
+// GET APPLICANTS FOR A JOB (employer)
+// =========================
+
+router.get(
+  "/:id/applicants",
+  auth,
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.id);
+
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const company = await Company.findById(job.companyId);
+      if (!company) {
+        return res.status(404).json({ message: "Associated company not found" });
+      }
+
+      const user = await User.findById(req.user.id);
+      const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
+      const hasPermission =
+        user.role === "admin" ||
+        (isMember && (user.companyRole === "owner" || user.companyRole === "admin" || user.companyRole === "recruiter"));
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Not authorized to view applicants for this job" });
+      }
+
+      const applications = await Application.find({ job: job._id })
+        .populate("applicant", "name email")
+        .sort({ createdAt: -1 });
+
+      res.json(applications);
+
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ message: "Server error" });
     }
   }
 );

@@ -65,7 +65,7 @@ router.get(
         .populate("job")
         .populate(
           "applicant",
-          "firstName lastName email"
+          "name email"
         );
 
       res.json(applications);
@@ -79,5 +79,34 @@ router.get(
     }
   }
 );
+
+// =========================
+// GET RECENT APPLICANTS (employer dashboard)
+// =========================
+router.get("/recent-applicants", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user.companyId) {
+      return res.status(400).json({ message: "No company associated with this user" });
+    }
+
+    const jobs = await Job.find({ companyId: user.companyId });
+    const jobIds = jobs.map(job => job._id);
+
+    const applications = await Application.find({
+      job: { $in: jobIds }
+    })
+      .populate("applicant", "name email")
+      .populate("job", "title")
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    res.json(applications);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 module.exports = router;

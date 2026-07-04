@@ -140,7 +140,7 @@ router.get("/jobs/:id", auth, requireRole("admin"), async (req, res) => {
 // =======================
 // SUSPEND JOB (ADMIN)
 // =======================
-router.put("/jobs/:id/suspend", auth, requireRole("admin"), async (req, res) => {
+const suspendJob = async (req, res) => {
   try {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
@@ -152,7 +152,9 @@ router.put("/jobs/:id/suspend", auth, requireRole("admin"), async (req, res) => 
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+};
+router.put("/jobs/:id/suspend", auth, requireRole("admin"), suspendJob);
+router.patch("/jobs/:id/suspend", auth, requireRole("admin"), suspendJob);
 
 // =======================
 // RESTORE SUSPENDED JOB (ADMIN)

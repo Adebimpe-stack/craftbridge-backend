@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const jwt = require("jsonwebtoken");
 const auth = require("../middleware/auth");
 const Company = require("../models/Company");
 const Job = require("../models/Job");
@@ -8,9 +9,34 @@ const Application = require("../models/Application");
 const { sendInvitationEmail } = require("../services/emailService");
 
 // =========================
-// GET COMPANY + ITS JOBS
+// OPTIONAL AUTH HELPER
+// Attaches req.user if a valid token is provided, otherwise continues
 // =========================
-router.get("/:id/jobs", async (req, res) => {
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const token = authHeader.split(" ")[1];
+      if (token) {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).select(
+          "-password -emailVerificationToken -resetPasswordToken"
+        );
+        if (user) req.user = user;
+      }
+    }
+  } catch (err) {
+    // ignore invalid tokens for public routes
+  }
+  next();
+};
+
+// =========================
+// GET COMPANY + ITS JOBS
+// Public: only active, non-deleted jobs
+// Company members: all jobs including deleted
+// =========================
+router.get("/:id/jobs", optionalAuth, async (req, res) => {
   try {
     const companyId = req.params.id;
 
@@ -22,9 +48,18 @@ router.get("/:id/jobs", async (req, res) => {
       });
     }
 
-    const jobs = await Job.find({
-      companyId: companyId
-    }).sort({ createdAt: -1 });
+    let query = { companyId: companyId, isDeleted: false };
+
+    const isCompanyMember =
+      req.user &&
+      req.user.companyId &&
+      req.user.companyId.toString() === companyId;
+
+    if (!isCompanyMember) {
+      query.status = "active";
+    }
+
+    const jobs = await Job.find(query).sort({ createdAt: -1 });
 
     res.json({
       company,
@@ -651,10 +686,10 @@ router.get("/:id/dashboard", auth, async (req, res) => {
       });
     }
 
-    // Get company jobs
-    const jobs = await Job.find({ companyId: company._id });
+    // Get company jobs (exclude deleted from dashboard stats)
+    const jobs = await Job.find({ companyId: company._id, isDeleted: false });
     const totalJobs = jobs.length;
-    const activeJobs = jobs.filter(job => job.status !== "closed").length;
+    const activeJobs = jobs.filter(job => job.status === "active").length;
 
     // Get applicants for all company jobs
     const jobIds = jobs.map(job => job._id);
