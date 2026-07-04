@@ -85,7 +85,37 @@ const activateSubscription = async (companyId, userId, plan = "premium", days = 
   return { plan, expiry };
 };
 
+// =========================
+// DEACTIVATE SUBSCRIPTION
+// Revokes the company subscription and mirrors to user.
+// If no company is linked, the user record is deactivated directly.
+// =========================
+const deactivateSubscription = async (companyId, userId) => {
+  if (companyId) {
+    await Company.findByIdAndUpdate(companyId, {
+      subscriptionActive: false,
+      subscriptionPlan: "free",
+      subscriptionExpiry: null,
+    }, { runValidators: false });
+
+    await syncSubscriptionToUser(companyId, userId);
+  } else if (userId) {
+    await User.findByIdAndUpdate(userId, {
+      subscriptionActive: false,
+      subscriptionPlan: "free",
+      subscriptionExpiry: null,
+      subscription: {
+        plan: "free",
+        isActive: false,
+        startDate: null,
+        expiresAt: null,
+      },
+    }, { runValidators: false });
+  }
+};
+
 module.exports = {
   syncSubscriptionToUser,
   activateSubscription,
+  deactivateSubscription,
 };

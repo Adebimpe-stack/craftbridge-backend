@@ -7,7 +7,7 @@ const requireRole = require("../middleware/role");
 const User = require("../models/User");
 const Job = require("../models/Job");
 const Company = require("../models/Company");
-const { activateSubscription } = require("../utils/syncSubscription");
+const { activateSubscription, deactivateSubscription } = require("../utils/syncSubscription");
 
 // =======================
 // GET ALL USERS
@@ -341,6 +341,27 @@ router.post("/grant-subscription", auth, requireRole("admin"), async (req, res) 
       hasActiveSubscription: true,
       subscriptionPlan: "premium",
       subscriptionExpiry: expiry,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// REVOKE SUBSCRIPTION (admin)
+// =======================
+router.post("/revoke-subscription", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    await deactivateSubscription(user.companyId, user._id);
+
+    res.json({
+      message: `Subscription revoked for ${email}`,
+      hasActiveSubscription: false,
+      subscriptionPlan: "free",
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
