@@ -86,8 +86,30 @@ router.get(
         };
       }
 
+      // Merge company profile data into the response
+      let companyProfileData = {};
+      if (user.companyId) {
+        const company = await Company.findById(user.companyId).lean();
+        if (company) {
+          companyProfileData = {
+            companyName: company.name,
+            industry: company.industry || "",
+            companySize: company.companySize || "",
+            location: company.location || "",
+            description: company.description || "",
+            website: company.website || "",
+            logo: company.logo || "",
+            cacNumber: company.cacNumber || "",
+            businessType: company.businessType || "",
+            verificationStatus: company.verificationStatus || "none",
+            isCompanyVerified: company.verificationStatus === "verified",
+          };
+        }
+      }
+
       res.json({
         ...user.toObject(),
+        ...companyProfileData,
         ...subscriptionData,
       });
 
@@ -148,7 +170,7 @@ router.put(
       // UPDATE PROFILE FIELDS
       // =========================
 
-      user.companyName =
+      const incomingCompanyName =
         req.body.companyName ||
         user.companyName;
 
@@ -164,21 +186,9 @@ router.put(
         req.body.website ||
         user.website;
 
-      user.industry =
-        req.body.industry ||
-        user.industry;
-
-      user.companySize =
-        req.body.companySize ||
-        user.companySize;
-
       user.location =
         req.body.location ||
         user.location;
-
-      user.description =
-        req.body.description ||
-        user.description;
 
       user.cacNumber =
         req.body.cacNumber ||
@@ -188,63 +198,78 @@ router.put(
       // HANDLE FILE UPLOAD
       // =========================
 
-if (
-  req.files?.verificationDocuments
-) {
+      if (req.files?.verificationDocuments) {
+        const newDocs =
+          req.files.verificationDocuments.map(
+            (file) => file.location
+          );
 
-console.log(
-  "CURRENT DOCS:",
-  user.verificationDocuments
-);
+        user.verificationDocuments = [
+          ...(user.verificationDocuments || []),
+          ...newDocs,
+        ];
+        user.isCompanyVerified = false;
+      }
 
-console.log(
-  "NEW DOCS:",
-  req.files.verificationDocuments.map(
-    file => file.location
-  )
-);
+      if (req.files?.profilePicture?.[0]) {
+        user.profilePicture =
+          req.files.profilePicture[0].location;
+      }
 
-const newDocs =
-  req.files.verificationDocuments.map(
-    (file) => file.location
-  );
-
-user.verificationDocuments = [
-  ...(user.verificationDocuments || []),
-  ...newDocs,
-];
-  user.isCompanyVerified =
-    false;
-
-}
-if (
-  req.files?.profilePicture?.[0]
-) {
-
-  user.profilePicture =
-    req.files
-      .profilePicture[0]
-      .location;
-
-}
-
-      const profileUpdateFields = {
-        companyName: user.companyName,
-        email: user.email,
-        phone: user.phone,
-        website: user.website,
-        industry: user.industry,
-        companySize: user.companySize,
-        location: user.location,
-        description: user.description,
-        cacNumber: user.cacNumber,
-        verificationDocuments: user.verificationDocuments,
-        isCompanyVerified: user.isCompanyVerified,
-        profilePicture: user.profilePicture,
+      // =========================
+      // PERSIST COMPANY DATA TO COMPANY MODEL
+      // =========================
+      const companyUpdateFields = {
+        name: incomingCompanyName || user.name,
+        website: req.body.website || user.website || "",
+        industry: req.body.industry || "",
+        companySize: req.body.companySize || "",
+        location: req.body.location || user.location || "",
+        description: req.body.description || "",
+        cacNumber: req.body.cacNumber || user.cacNumber || "",
+        businessType: req.body.companyType || user.companyType || "",
       };
+
+      if (user.profilePicture) {
+        companyUpdateFields.logo = user.profilePicture;
+      }
+
+      if (user.verificationDocuments?.length) {
+        companyUpdateFields.verificationDocuments = user.verificationDocuments;
+      }
+
+      let company = null;
+      if (user.companyId) {
+        company = await Company.findByIdAndUpdate(
+          user.companyId,
+          companyUpdateFields,
+          { new: true, runValidators: false }
+        );
+      } else if (user.role === "employer") {
+        company = await Company.create({
+          ...companyUpdateFields,
+          owner: user._id,
+          createdBy: user._id,
+        });
+        await User.findByIdAndUpdate(
+          user._id,
+          { companyId: company._id, companyRole: "owner" },
+          { runValidators: false }
+        );
+      }
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user.id,
-        profileUpdateFields,
+        {
+          email: user.email,
+          phone: user.phone,
+          website: user.website,
+          location: user.location,
+          cacNumber: user.cacNumber,
+          verificationDocuments: user.verificationDocuments,
+          isCompanyVerified: user.isCompanyVerified,
+          profilePicture: user.profilePicture,
+        },
         { new: true, runValidators: false }
       );
 
@@ -254,6 +279,7 @@ if (
           "Company profile updated successfully",
 
         user: updatedUser,
+        company,
 
       });
 

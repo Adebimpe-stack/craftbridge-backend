@@ -64,7 +64,26 @@ router.get("/", async (req, res) => {
     const companyIds = new Set(companies.map((c) => c._id.toString()));
     const coveredOwnerIds = new Set(companies.map((c) => c.owner?.toString()).filter(Boolean));
 
-    const normalizedCompanies = companies.map(normalizeCompany);
+    // Fetch owners so we can backfill empty company fields from user data
+    const ownerIds = companies.map((c) => c.owner).filter(Boolean);
+    const owners = await User.find({ _id: { $in: ownerIds } }).lean();
+    const ownerById = new Map(owners.map((u) => [u._id.toString(), u]));
+
+    const normalizedCompanies = companies.map((company) => {
+      const owner = company.owner ? ownerById.get(company.owner.toString()) : null;
+      const enriched = {
+        ...company,
+        logo: company.logo || owner?.profilePicture || "",
+        description: company.description || owner?.bio || owner?.professionalSummary || owner?.description || "",
+        industry: company.industry || company.businessType || owner?.industry || owner?.companyType || "",
+        businessType: company.businessType || owner?.companyType || "",
+        companySize: company.companySize || owner?.companySize || "",
+        location: company.location || owner?.location || "",
+        website: company.website || owner?.website || "",
+        verificationStatus: company.verificationStatus || owner?.verificationStatus || "none",
+      };
+      return normalizeCompany(enriched);
+    });
 
     // Map remaining employers to the same normalized shape
     const employerCompanies = allEmployers
