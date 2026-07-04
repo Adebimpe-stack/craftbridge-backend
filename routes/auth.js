@@ -96,10 +96,11 @@ router.post(
 
       // If registering via invitation, join the company
       if (invitation) {
-        user.companyId = invitation.company;
-        user.companyRole = invitation.role;
-        user.role = "employer";
-        await user.save();
+        await User.findByIdAndUpdate(
+          user._id,
+          { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+          { runValidators: false }
+        );
 
         // Update company team members
         const company = await Company.findById(invitation.company);
@@ -132,13 +133,11 @@ router.post(
 
           });
 
-        user.companyId =
-          company._id;
-
-        user.companyRole =
-          "owner";
-
-        await user.save();
+        await User.findByIdAndUpdate(
+          user._id,
+          { companyId: company._id, companyRole: "owner" },
+          { runValidators: false }
+        );
 
       }
 
@@ -149,10 +148,11 @@ router.post(
           .randomBytes(32)
           .toString("hex");
 
-      user.emailVerificationToken =
-        verificationToken;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { emailVerificationToken: verificationToken },
+        { runValidators: false }
+      );
 
       // VERIFY URL
       const verifyUrl =
@@ -364,13 +364,11 @@ router.get(
 
       }
 
-      user.isVerified =
-        true;
-
-      user.emailVerificationToken =
-        undefined;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { isVerified: true, emailVerificationToken: undefined },
+        { runValidators: false }
+      );
 
       return res
         .status(200)
@@ -616,10 +614,11 @@ router.post(
           .randomBytes(32)
           .toString("hex");
 
-      user.resetPasswordToken =
-        resetToken;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { resetPasswordToken: resetToken },
+        { runValidators: false }
+      );
 
       // RESET LINK
       const resetLink =
@@ -758,16 +757,17 @@ router.post(
       const salt =
         await bcrypt.genSalt(10);
 
-      user.password =
+      const hashedPassword =
         await bcrypt.hash(
           password,
           salt
         );
 
-      user.resetPasswordToken =
-        undefined;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { password: hashedPassword, resetPasswordToken: undefined },
+        { runValidators: false }
+      );
 
       return res
         .status(200)

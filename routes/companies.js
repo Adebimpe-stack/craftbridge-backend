@@ -353,10 +353,11 @@ router.post("/invite/:token/accept", auth, async (req, res) => {
     }
 
     // Update user
-    user.companyId = invitation.company;
-    user.companyRole = invitation.role;
-    user.role = "employer";
-    await user.save();
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+      { runValidators: false }
+    );
 
     // Update company team members
     const company = await Company.findById(invitation.company);
@@ -422,10 +423,11 @@ router.post("/invitations/:id/accept", auth, async (req, res) => {
     }
 
     // Update user
-    user.companyId = invitation.company;
-    user.companyRole = invitation.role;
-    user.role = "employer";
-    await user.save();
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+      { runValidators: false }
+    );
 
     // Update company team members
     const company = await Company.findById(invitation.company);
@@ -610,10 +612,11 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
     await company.save();
 
     // Remove user's company association
-    memberToRemove.companyId = null;
-    memberToRemove.companyRole = null;
-    memberToRemove.role = "jobseeker";
-    await memberToRemove.save();
+    await User.findByIdAndUpdate(
+      req.params.userId,
+      { companyId: null, companyRole: null, role: "jobseeker" },
+      { runValidators: false }
+    );
 
     res.json({
       message: "Team member removed successfully"
@@ -750,8 +753,11 @@ router.put("/:id/team/:userId/role", auth, async (req, res) => {
     }
 
     // Update user's role
-    memberToUpdate.companyRole = role;
-    await memberToUpdate.save();
+    await User.findByIdAndUpdate(
+      req.params.userId,
+      { companyRole: role },
+      { runValidators: false }
+    );
 
     res.json({
       message: "Team member role updated successfully",
@@ -759,7 +765,7 @@ router.put("/:id/team/:userId/role", auth, async (req, res) => {
         _id: memberToUpdate._id,
         name: memberToUpdate.name,
         email: memberToUpdate.email,
-        companyRole: memberToUpdate.companyRole
+        companyRole: role
       }
     });
   } catch (err) {

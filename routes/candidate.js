@@ -125,11 +125,24 @@ req.user.id
       req.file.location;
   }
 
-  await user.save();
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      headline: user.headline,
+      location: user.location,
+      experienceYears: user.experienceYears,
+      bio: user.bio,
+      availability: user.availability,
+      skills: user.skills,
+      certifications: user.certifications,
+      profilePicture: user.profilePicture,
+    },
+    { new: true, runValidators: false }
+  );
 
   res.json({
     message: "Profile updated",
-    user,
+    user: updatedUser,
   });
 } catch (err) {
   res.status(500).json({
@@ -152,10 +165,11 @@ router.post("/resume-parsed", auth, async (req, res) => {
       });
     }
 
-    user.resumeText = req.body.rawText;
-    user.resumeData = req.body.parsedData;
-
-    await user.save();
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { resumeText: req.body.rawText, resumeData: req.body.parsedData },
+      { runValidators: false }
+    );
 
     res.json({
       message: "Resume saved successfully",
@@ -187,13 +201,16 @@ router.post(
         });
       }
 
-      user.resumeUrl = req.file.location;
-
-      await user.save();
+      const resumeUrl = req.file.location;
+      await User.findByIdAndUpdate(
+        req.user.id,
+        { resumeUrl },
+        { runValidators: false }
+      );
 
       res.json({
         message: "Resume uploaded successfully",
-        resumeUrl: user.resumeUrl,
+        resumeUrl,
       });
     } catch (err) {
       res.status(500).json({
@@ -217,9 +234,11 @@ router.delete(
         });
       }
 
-      user.resumeUrl = "";
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        req.user.id,
+        { resumeUrl: "" },
+        { runValidators: false }
+      );
 
       res.json({
         message: "Resume removed",

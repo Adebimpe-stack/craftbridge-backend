@@ -469,23 +469,86 @@ router.put("/jobs/:id/unsuspend", auth, requireRole("admin"), async (req, res) =
 });
 
 // =======================
-// ONE-TIME MIGRATION: rewrite legacy "unverified" -> "none"
-// Call once then it is safe to call repeatedly (idempotent)
+// AUDIT VERIFICATION STATUS ENUMS
+// Reports any documents that violate the current allowed enum values
 // =======================
-router.post("/migrate/fix-verification-status", auth, requireRole("admin"), async (req, res) => {
+router.get("/audit/verification-status", auth, requireRole("admin"), async (req, res) => {
   try {
+    const allowedWvs = ["none", "pending", "verified", "rejected"];
+    const allowedVs = ["none", "pending", "verified", "rejected"];
+    const allowedCompanyVs = ["none", "pending", "verified", "rejected"];
+
+    const invalidWorkerStatus = await User.find({
+      role: "jobseeker",
+      workerVerificationStatus: { $nin: allowedWvs },
+    }).select("_id name email workerVerificationStatus");
+
+    const invalidUserVerificationStatus = await User.find({
+      verificationStatus: { $nin: allowedVs },
+    }).select("_id name email role verificationStatus");
+
+    const invalidCompanyStatus = await Company.find({
+      verificationStatus: { $nin: allowedCompanyVs },
+    }).select("_id name owner verificationStatus");
+
+    res.json({
+      allowed: {
+        workerVerificationStatus: allowedWvs,
+        userVerificationStatus: allowedVs,
+        companyVerificationStatus: allowedCompanyVs,
+      },
+      invalid: {
+        workerVerificationStatus: {
+          count: invalidWorkerStatus.length,
+          documents: invalidWorkerStatus,
+        },
+        userVerificationStatus: {
+          count: invalidUserVerificationStatus.length,
+          documents: invalidUserVerificationStatus,
+        },
+        companyVerificationStatus: {
+          count: invalidCompanyStatus.length,
+          documents: invalidCompanyStatus,
+        },
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// ONE-TIME MIGRATION: rewrite legacy verification statuses to valid enum values
+// unverified (worker) -> none
+// unverified (user/company) -> pending
+// Safe to call repeatedly (idempotent)
+// =======================
+router.post("/migrate/verification-status", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const allowedWvs = ["none", "pending", "verified", "rejected"];
+    const allowedVs = ["none", "pending", "verified", "rejected"];
+    const allowedCompanyVs = ["none", "pending", "verified", "rejected"];
+
     const wvsResult = await User.updateMany(
-      { workerVerificationStatus: "unverified" },
+      { workerVerificationStatus: { $nin: allowedWvs } },
       { $set: { workerVerificationStatus: "none" } }
     );
+
     const vsResult = await User.updateMany(
-      { verificationStatus: "unverified" },
+      { verificationStatus: { $nin: allowedVs } },
       { $set: { verificationStatus: "pending" } }
     );
+
+    const companyResult = await Company.updateMany(
+      { verificationStatus: { $nin: allowedCompanyVs } },
+      { $set: { verificationStatus: "pending" } }
+    );
+
     res.json({
       message: "Migration complete",
       workerVerificationStatusFixed: wvsResult.modifiedCount,
-      verificationStatusFixed: vsResult.modifiedCount,
+      userVerificationStatusFixed: vsResult.modifiedCount,
+      companyVerificationStatusFixed: companyResult.modifiedCount,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
