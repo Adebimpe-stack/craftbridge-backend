@@ -541,10 +541,17 @@ if (user.accountStatus === "deactivated") {
           userResponse.subscriptionPlan = company.subscriptionPlan || "free";
           userResponse.subscriptionExpiry = company.subscriptionExpiry || null;
         } else {
-          userResponse.hasActiveSubscription = false;
-          userResponse.subscriptionActive = false;
-          userResponse.subscriptionPlan = "free";
-          userResponse.subscriptionExpiry = null;
+          // Fallback to the user record if the company is missing
+          const now = new Date();
+          const isActive =
+            user.subscriptionActive &&
+            user.subscriptionExpiry &&
+            new Date(user.subscriptionExpiry) > now;
+
+          userResponse.hasActiveSubscription = isActive;
+          userResponse.subscriptionActive = isActive;
+          userResponse.subscriptionPlan = user.subscriptionPlan || "free";
+          userResponse.subscriptionExpiry = user.subscriptionExpiry || null;
         }
       }
 

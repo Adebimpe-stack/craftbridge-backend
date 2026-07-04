@@ -51,13 +51,14 @@ router.get(
         subscriptionExpiry: null,
       };
 
+      const now = new Date();
+
       if (user.companyId) {
         const company = await Company.findById(user.companyId).select(
           "subscriptionActive subscriptionPlan subscriptionExpiry"
         );
 
         if (company) {
-          const now = new Date();
           const isActive =
             company.subscriptionActive &&
             company.subscriptionExpiry &&
@@ -70,6 +71,19 @@ router.get(
             subscriptionExpiry: company.subscriptionExpiry || null,
           };
         }
+      } else {
+        // Fallback to the user record when no company is linked
+        const isActive =
+          user.subscriptionActive &&
+          user.subscriptionExpiry &&
+          new Date(user.subscriptionExpiry) > now;
+
+        subscriptionData = {
+          hasActiveSubscription: isActive,
+          subscriptionActive: isActive,
+          subscriptionPlan: user.subscriptionPlan || "free",
+          subscriptionExpiry: user.subscriptionExpiry || null,
+        };
       }
 
       res.json({

@@ -4,25 +4,25 @@ const Company = require("../models/Company");
 // =========================
 // SUBSCRIPTION SYNC HELPER
 // Company is the authoritative source for employer subscription status.
-// This helper writes the same state to the user record so backend checks,
-// cron jobs, and legacy code paths stay consistent.
+// This helper mirrors the Company's current subscription state to the user
+// so backend checks, cron jobs, and legacy code paths stay consistent.
 // =========================
 const syncSubscriptionToUser = async (companyId, userId) => {
-  if (!companyId && !userId) return;
+  if (!companyId || !userId) return;
 
-  const company = companyId ? await Company.findById(companyId) : null;
-  const user = userId ? await User.findById(userId) : null;
+  const company = await Company.findById(companyId);
+  const user = await User.findById(userId);
 
-  if (!company && !user) return;
+  if (!company || !user) return;
 
   const now = new Date();
   const isActive =
-    company?.subscriptionActive &&
-    company?.subscriptionExpiry &&
+    company.subscriptionActive &&
+    company.subscriptionExpiry &&
     new Date(company.subscriptionExpiry) > now;
 
-  const plan = company?.subscriptionPlan || "free";
-  const expiry = company?.subscriptionExpiry || null;
+  const plan = company.subscriptionPlan || "free";
+  const expiry = company.subscriptionExpiry || null;
 
   const update = {
     subscriptionActive: isActive,
@@ -35,7 +35,7 @@ const syncSubscriptionToUser = async (companyId, userId) => {
     update.subscription = {
       plan,
       isActive,
-      startDate: user?.subscription?.startDate || new Date(),
+      startDate: user.subscription?.startDate || new Date(),
       expiresAt: expiry,
     };
   } else {
@@ -47,14 +47,13 @@ const syncSubscriptionToUser = async (companyId, userId) => {
     };
   }
 
-  if (user) {
-    await User.findByIdAndUpdate(user._id, update, { runValidators: false });
-  }
+  await User.findByIdAndUpdate(user._id, update, { runValidators: false });
 };
 
 // =========================
 // ACTIVATE SUBSCRIPTION
-// Sets the company as the active subscriber and mirrors to user.
+// Sets the company as the active subscriber and mirrors to the user.
+// If no company is linked, the user record is activated directly.
 // =========================
 const activateSubscription = async (companyId, userId, plan = "premium", days = 30) => {
   const expiry = new Date();
@@ -66,9 +65,22 @@ const activateSubscription = async (companyId, userId, plan = "premium", days = 
       subscriptionPlan: plan,
       subscriptionExpiry: expiry,
     }, { runValidators: false });
-  }
 
-  await syncSubscriptionToUser(companyId, userId);
+    await syncSubscriptionToUser(companyId, userId);
+  } else if (userId) {
+    // No company on file — activate the user record directly
+    await User.findByIdAndUpdate(userId, {
+      subscriptionActive: true,
+      subscriptionPlan: plan,
+      subscriptionExpiry: expiry,
+      subscription: {
+        plan,
+        isActive: true,
+        startDate: new Date(),
+        expiresAt: expiry,
+      },
+    }, { runValidators: false });
+  }
 
   return { plan, expiry };
 };
