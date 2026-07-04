@@ -1,6 +1,8 @@
 const cron = require("node-cron");
 const User = require("../models/User");
+const Company = require("../models/Company");
 const sendEmail = require("../utils/mailer");
+const { syncSubscriptionToUser } = require("../utils/syncSubscription");
 
 const subscriptionReminderJob = () => {
   // runs every day at 8AM
@@ -8,52 +10,74 @@ const subscriptionReminderJob = () => {
     try {
       const now = new Date();
 
-      const users = await User.find({
-        "subscription.expiresAt": { $ne: null }
+      // Company is the authoritative source for subscription expiry
+      const companies = await Company.find({
+        subscriptionExpiry: { $ne: null }
       });
 
-      for (let user of users) {
-        const expiry = new Date(user.subscription.expiresAt);
+      for (let company of companies) {
+        const expiry = new Date(company.subscriptionExpiry);
         const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+        // Find a company owner to notify
+        const owner = await User.findOne({
+          companyId: company._id,
+          companyRole: "owner",
+        });
+
+        const email = owner?.email;
+        const name = owner?.name || "Employer";
 
         /* =========================
            7 DAYS BEFORE EXPIRY
         ========================== */
-        if (diffDays === 7) {
+        if (diffDays === 7 && email) {
           await sendEmail({
-            to: user.email,
+            to: email,
             subject: "Subscription expires in 7 days",
-            text: `Hi ${user.name}, your subscription expires in 7 days. Please renew to continue posting jobs.`
+            text: `Hi ${name}, your subscription expires in 7 days. Please renew to continue posting jobs.`
           });
         }
 
         /* =========================
            1 DAY BEFORE EXPIRY
         ========================== */
-        if (diffDays === 1) {
+        if (diffDays === 1 && email) {
           await sendEmail({
-            to: user.email,
+            to: email,
             subject: "Subscription expires tomorrow",
-            text: `Hi ${user.name}, your subscription expires tomorrow. Renew now.`
+            text: `Hi ${name}, your subscription expires tomorrow. Renew now.`
           });
         }
 
         /* =========================
            EXPIRED → AUTO DISABLE
         ========================== */
-        if (diffDays <= 0 && user.subscription.isActive) {
-          user.subscription.plan = "free";
-          user.subscription.isActive = false;
+        if (diffDays <= 0 && company.subscriptionActive) {
+          await Company.findByIdAndUpdate(
+            company._id,
+            {
+              subscriptionActive: false,
+              subscriptionPlan: "free",
+            },
+            { runValidators: false }
+          );
 
-          await user.save();
+          // Mirror deactivation to all company members
+          const members = await User.find({ companyId: company._id });
+          for (let member of members) {
+            await syncSubscriptionToUser(company._id, member._id);
+          }
 
-          await sendEmail({
-            to: user.email,
-            subject: "Subscription expired",
-            text: `Hi ${user.name}, your subscription has expired. Your account has been switched to free plan. Please renew to regain access.`
-          });
+          if (email) {
+            await sendEmail({
+              to: email,
+              subject: "Subscription expired",
+              text: `Hi ${name}, your subscription has expired. Your account has been switched to free plan. Please renew to regain access.`
+            });
+          }
 
-          console.log(`User downgraded: ${user.email}`);
+          console.log(`Company downgraded: ${company.companyName || company._id}`);
         }
       }
 

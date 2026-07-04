@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require("crypto");
 
 const User = require("../models/User");
+const { activateSubscription } = require("../utils/syncSubscription");
 
 // VERIFY PAYSTACK SIGNATURE
 const verifySignature = (req) => {
@@ -41,27 +42,12 @@ router.post("/paystack/webhook", async (req, res) => {
 
       if (!user) return res.status(404).send("User not found");
 
-      // 🔥 30-DAY SUBSCRIPTION ACTIVATION
-      const subscriptionExpiry = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      );
-
-      const subscription = {
-        plan: "paid",
-        isActive: true,
-        startDate: new Date(),
-        expiresAt: subscriptionExpiry,
-      };
-
-      await User.findByIdAndUpdate(
+      // Activate subscription on the company and mirror to user
+      await activateSubscription(
+        user.companyId,
         user._id,
-        {
-          subscription,
-          subscriptionPlan: "paid",
-          subscriptionActive: true,
-          subscriptionExpiry,
-        },
-        { runValidators: false }
+        "premium",
+        30
       );
 
       console.log(`Subscription activated for ${email}`);

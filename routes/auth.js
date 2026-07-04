@@ -525,6 +525,27 @@ if (user.accountStatus === "deactivated") {
         userResponse.companyRole = user.companyRole;
         userResponse.companyVerificationStatus = user.verificationStatus;
         userResponse.isCompanyVerified = user.isCompanyVerified;
+
+        const company = await Company.findById(user.companyId).select(
+          "subscriptionActive subscriptionPlan subscriptionExpiry"
+        );
+        if (company) {
+          const now = new Date();
+          const isActive =
+            company.subscriptionActive &&
+            company.subscriptionExpiry &&
+            new Date(company.subscriptionExpiry) > now;
+
+          userResponse.hasActiveSubscription = isActive;
+          userResponse.subscriptionActive = isActive;
+          userResponse.subscriptionPlan = company.subscriptionPlan || "free";
+          userResponse.subscriptionExpiry = company.subscriptionExpiry || null;
+        } else {
+          userResponse.hasActiveSubscription = false;
+          userResponse.subscriptionActive = false;
+          userResponse.subscriptionPlan = "free";
+          userResponse.subscriptionExpiry = null;
+        }
       }
 
       // Check for pending invitations — with 2s timeout to never block login

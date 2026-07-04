@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Company = require("../models/Company");
 
 const subscription = async (req, res, next) => {
   try {
@@ -8,15 +9,30 @@ const subscription = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    let isSubscribed = false;
     const now = new Date();
 
-    const isSubscribed =
-      (user.subscription?.isActive &&
-        user.subscription?.expiresAt &&
-        new Date(user.subscription.expiresAt) > now) ||
-      (user.subscriptionActive &&
-        user.subscriptionExpiry &&
-        new Date(user.subscriptionExpiry) > now);
+    // Company is the authoritative source for employer subscriptions.
+    if (user.companyId) {
+      const company = await Company.findById(user.companyId).select(
+        "subscriptionActive subscriptionExpiry"
+      );
+      if (company) {
+        isSubscribed =
+          company.subscriptionActive &&
+          company.subscriptionExpiry &&
+          new Date(company.subscriptionExpiry) > now;
+      }
+    } else {
+      // Fallback to user record for non-employer roles
+      isSubscribed =
+        (user.subscription?.isActive &&
+          user.subscription?.expiresAt &&
+          new Date(user.subscription.expiresAt) > now) ||
+        (user.subscriptionActive &&
+          user.subscriptionExpiry &&
+          new Date(user.subscriptionExpiry) > now);
+    }
 
     req.userData = user;
     req.isSubscribed = isSubscribed;

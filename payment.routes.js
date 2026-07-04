@@ -5,7 +5,7 @@ const axios = require("axios");
 const auth = require("./middleware/auth");
 const User = require("./models/User");
 const Company = require("./models/Company");
-
+const { activateSubscription } = require("./utils/syncSubscription");
 
 // INIT PAYMENT
 router.post("/payments/paystack/init", auth, async (req, res) => {
@@ -64,31 +64,24 @@ router.get("/payments/paystack/verify/:reference", auth, async (req, res) => {
       });
     }
 
-    // Activate subscription on the Company record
+    // Activate subscription on the Company record and mirror to User
     const user = await User.findById(req.user.id).select("companyId email");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.companyId) {
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 30); // 30-day subscription
-
-      await Company.findByIdAndUpdate(user.companyId, {
-        subscriptionActive: true,
-        subscriptionPlan: "premium",
-        subscriptionExpiry: expiry,
-      });
-    }
-
-    // Also flag on the User for fast middleware access
-    await User.findByIdAndUpdate(req.user.id, {
-      subscriptionActive: true,
-    });
+    const { plan, expiry } = await activateSubscription(
+      user.companyId,
+      user._id,
+      "premium",
+      30
+    );
 
     return res.json({
       message: "Subscription activated successfully! Your plan is now active for 30 days.",
-      subscriptionActive: true,
+      hasActiveSubscription: true,
+      subscriptionPlan: plan,
+      subscriptionExpiry: expiry,
     });
 
   } catch (err) {

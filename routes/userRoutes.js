@@ -7,6 +7,9 @@ const router =
 const User =
   require("../models/User");
 
+const Company =
+  require("../models/Company");
+
 const protect =
   require("../middleware/auth");
 
@@ -38,7 +41,41 @@ router.get(
 
       }
 
-      res.json(user);
+      // Company is the authoritative source for employer subscription state.
+      // Mirror its subscription fields into the response so the frontend has
+      // a single, consistent source of truth.
+      let subscriptionData = {
+        hasActiveSubscription: false,
+        subscriptionActive: false,
+        subscriptionPlan: "free",
+        subscriptionExpiry: null,
+      };
+
+      if (user.companyId) {
+        const company = await Company.findById(user.companyId).select(
+          "subscriptionActive subscriptionPlan subscriptionExpiry"
+        );
+
+        if (company) {
+          const now = new Date();
+          const isActive =
+            company.subscriptionActive &&
+            company.subscriptionExpiry &&
+            new Date(company.subscriptionExpiry) > now;
+
+          subscriptionData = {
+            hasActiveSubscription: isActive,
+            subscriptionActive: isActive,
+            subscriptionPlan: company.subscriptionPlan || "free",
+            subscriptionExpiry: company.subscriptionExpiry || null,
+          };
+        }
+      }
+
+      res.json({
+        ...user.toObject(),
+        ...subscriptionData,
+      });
 
     } catch (error) {
 

@@ -7,7 +7,7 @@ const requireRole = require("../middleware/role");
 const User = require("../models/User");
 const Job = require("../models/Job");
 const Company = require("../models/Company");
-
+const { activateSubscription } = require("../utils/syncSubscription");
 
 // =======================
 // GET ALL USERS
@@ -329,17 +329,19 @@ router.post("/grant-subscription", auth, requireRole("admin"), async (req, res) 
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + 30);
 
-    await User.findByIdAndUpdate(user._id, { subscriptionActive: true });
+    await activateSubscription(
+      user.companyId,
+      user._id,
+      "premium",
+      30
+    );
 
-    if (user.companyId) {
-      await Company.findByIdAndUpdate(user.companyId, {
-        subscriptionActive: true,
-        subscriptionPlan: "premium",
-        subscriptionExpiry: expiry,
-      });
-    }
-
-    res.json({ message: `Subscription activated for ${email}` });
+    res.json({
+      message: `Subscription activated for ${email}`,
+      hasActiveSubscription: true,
+      subscriptionPlan: "premium",
+      subscriptionExpiry: expiry,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
