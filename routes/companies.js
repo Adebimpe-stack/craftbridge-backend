@@ -12,6 +12,22 @@ const { sendInvitationEmail } = require("../services/emailService");
 // OPTIONAL AUTH HELPER
 // Attaches req.user if a valid token is provided, otherwise continues
 // =========================
+const normalizeCompany = (company) => ({
+  _id: company._id,
+  name: company.name || "Unnamed Company",
+  logo: company.logo || "",
+  description: company.description || "",
+  industry: company.industry || company.businessType || "",
+  businessType: company.businessType || "",
+  companySize: company.companySize || "",
+  location: company.location || "",
+  website: company.website || "",
+  verificationStatus: company.verificationStatus || "none",
+  isVerified: company.verificationStatus === "verified",
+  owner: company.owner || null,
+  createdAt: company.createdAt,
+});
+
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -34,7 +50,8 @@ const optionalAuth = async (req, res, next) => {
 // =========================
 // LIST ALL COMPANIES (Public)
 // Returns every Company record + every employer account that is not
-// already represented by a Company record.
+// already represented by a Company record. Response is normalized
+// so the frontend always receives the same field names.
 // =========================
 router.get("/", async (req, res) => {
   try {
@@ -47,7 +64,9 @@ router.get("/", async (req, res) => {
     const companyIds = new Set(companies.map((c) => c._id.toString()));
     const coveredOwnerIds = new Set(companies.map((c) => c.owner?.toString()).filter(Boolean));
 
-    // Map remaining employers to the same shape as companies
+    const normalizedCompanies = companies.map(normalizeCompany);
+
+    // Map remaining employers to the same normalized shape
     const employerCompanies = allEmployers
       .filter((user) => {
         const userId = user._id.toString();
@@ -58,22 +77,23 @@ router.get("/", async (req, res) => {
         if (linkedCompanyId && companyIds.has(linkedCompanyId)) return false;
         return true;
       })
-      .map((user) => ({
+      .map((user) => normalizeCompany({
         _id: user._id,
         name: user.name || "Unnamed Company",
-        description: user.description || "",
         logo: user.profilePicture || "",
-        website: user.website || "",
-        industry: user.industry || "",
+        description: user.bio || user.professionalSummary || user.description || "",
+        industry: user.industry || user.companyType || "",
+        businessType: user.companyType || "",
         companySize: user.companySize || "",
         location: user.location || "",
-        businessType: user.companyType || "",
+        website: user.website || "",
+        verificationStatus: user.verificationStatus || "none",
         owner: user._id,
         createdAt: user.createdAt,
-        isEmployerRecord: true,
-      }));
+      }))
+      .map((c) => ({ ...c, isEmployerRecord: true }));
 
-    const allCompanies = [...companies, ...employerCompanies];
+    const allCompanies = [...normalizedCompanies, ...employerCompanies];
 
     // Count active, non-deleted jobs per company/employer
     const companiesWithJobCount = await Promise.all(
@@ -105,7 +125,7 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
   try {
     const companyId = req.params.id;
 
-    let company = await Company.findById(companyId);
+    let company = await Company.findById(companyId).lean();
     let effectiveCompanyId = companyId;
 
     // Fallback: employer without a Company record
@@ -113,19 +133,22 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
       const employer = await User.findOne({
         _id: companyId,
         role: "employer",
-      });
+      }).lean();
 
       if (employer) {
         company = {
           _id: employer._id,
           name: employer.name || "Unnamed Company",
-          description: employer.description || "",
           logo: employer.profilePicture || "",
-          website: employer.website || "",
-          industry: employer.industry || "",
+          description: employer.bio || employer.professionalSummary || employer.description || "",
+          industry: employer.industry || employer.companyType || "",
+          businessType: employer.companyType || "",
           companySize: employer.companySize || "",
           location: employer.location || "",
-          businessType: employer.companyType || "",
+          website: employer.website || "",
+          verificationStatus: employer.verificationStatus || "none",
+          owner: employer._id,
+          createdAt: employer.createdAt,
         };
       } else {
         return res.status(404).json({
@@ -133,6 +156,13 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
         });
       }
     }
+
+    company = normalizeCompany(company);
+    company.jobCount = await Job.countDocuments({
+      companyId: effectiveCompanyId,
+      status: "active",
+      isDeleted: false,
+    });
 
     let query = { companyId: effectiveCompanyId, isDeleted: false };
 
