@@ -93,6 +93,7 @@ const jobSchema = new mongoose.Schema(
       enum: [
         "active",
         "closed",
+        "suspended",
       ],
       default: "active",
     },
@@ -119,6 +120,11 @@ const jobSchema = new mongoose.Schema(
         ref: "Application",
       },
     ],
+
+    isPriority: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

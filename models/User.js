@@ -15,6 +15,9 @@ const userSchema =
         type: String,
         required: true,
         unique: true,
+        index: true,
+        lowercase: true,
+        trim: true,
       },
 
       password: {
@@ -49,6 +52,7 @@ const userSchema =
       },
       primaryTrade: {
         type: String,
+        default: "",
       },
       serviceDescription: {
         type: String,

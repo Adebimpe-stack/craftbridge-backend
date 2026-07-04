@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const teamInvitationSchema = new mongoose.Schema(
   {
@@ -27,6 +28,13 @@ const teamInvitationSchema = new mongoose.Schema(
       required: true,
     },
 
+    token: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
     status: {
       type: String,
       enum: ["pending", "accepted", "rejected", "expired"],
@@ -44,6 +52,14 @@ const teamInvitationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Generate secure token before saving
+teamInvitationSchema.pre("save", function(next) {
+  if (!this.token) {
+    this.token = crypto.randomBytes(32).toString("hex");
+  }
+  next();
+});
 
 // Index for efficient lookups
 teamInvitationSchema.index({ email: 1, company: 1, status: 1 });

@@ -68,6 +68,12 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+    // Business type (set at registration)
+    businessType: {
+      type: String,
+      default: "",
+    },
+
     // Company details
     industry: {
       type: String,
@@ -155,6 +161,27 @@ const companySchema = new mongoose.Schema(
     reportsReceived: {
       type: Number,
       default: 0,
+    },
+
+    // Job posting limits
+    subscriptionPlan: {
+      type: String,
+      enum: ["free", "basic", "premium"],
+      default: "free",
+    },
+
+    jobsPosted: {
+      type: Number,
+      default: 0,
+    },
+
+    subscriptionActive: {
+      type: Boolean,
+      default: false,
+    },
+
+    subscriptionExpiry: {
+      type: Date,
     },
   },
   { timestamps: true }
