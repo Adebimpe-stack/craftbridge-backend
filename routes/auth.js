@@ -427,7 +427,7 @@ router.post(
       const user =
         await User.findOne({
           email: email.toLowerCase().trim(),
-        }).select("_id name email password role companyId companyRole isVerified accountStatus");
+        }).select("_id name email password role companyId companyRole isVerified accountStatus workerVerificationStatus verificationStatus");
 
       if (!user) {
 
@@ -510,12 +510,21 @@ if (user.accountStatus === "deactivated") {
         name: user.name,
         email: user.email,
         role: user.role,
+        isVerified: user.isVerified,
+        accountStatus: user.accountStatus,
       };
+
+      // Add worker verification info for jobseekers
+      if (user.role === "jobseeker") {
+        userResponse.workerVerificationStatus = user.workerVerificationStatus;
+      }
 
       // Add company info for employers
       if (user.role === "employer" && user.companyId) {
         userResponse.companyId = user.companyId;
         userResponse.companyRole = user.companyRole;
+        userResponse.companyVerificationStatus = user.verificationStatus;
+        userResponse.isCompanyVerified = user.isCompanyVerified;
       }
 
       // Check for pending invitations — with 2s timeout to never block login

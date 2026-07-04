@@ -184,10 +184,11 @@ const newJob =
         !user.hasUsedFreeJob
       ) {
 
-        user.hasUsedFreeJob =
-          true;
-
-        await user.save();
+        await User.findByIdAndUpdate(
+          user._id,
+          { hasUsedFreeJob: true },
+          { runValidators: false }
+        );
 
       }
 
@@ -222,7 +223,10 @@ router.get(
     try {
 
       const jobs =
-        await Job.find()
+        await Job.find({
+          status: "active",
+          isDeleted: false,
+        })
           .sort({
             createdAt: -1,
           });
@@ -254,9 +258,11 @@ router.get(
     try {
 
       const job =
-        await Job.findById(
-          req.params.id
-        );
+        await Job.findOne({
+          _id: req.params.id,
+          status: "active",
+          isDeleted: false,
+        });
 
       if (!job) {
 
@@ -509,13 +515,22 @@ router.post(
   async (req, res) => {
     try {
 
-const job = await Job.findById(
-  req.params.id
-);
+      // EMAIL VERIFICATION REQUIRED
+      if (!req.user.isVerified) {
+        return res.status(403).json({
+          message: "Please verify your email before applying for jobs.",
+        });
+      }
+
+const job = await Job.findOne({
+  _id: req.params.id,
+  status: "active",
+  isDeleted: false,
+});
 
 if (!job) {
   return res.status(404).json({
-    message: "Job not found",
+    message: "Job not found or no longer accepting applications",
   });
 }
 

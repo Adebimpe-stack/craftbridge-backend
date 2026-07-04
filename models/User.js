@@ -102,7 +102,7 @@ const userSchema =
       },
       workerVerificationStatus: {
         type: String,
-        enum: ["none", "pending", "verified", "rejected"],
+        enum: ["none", "pending", "verified", "rejected", "revoked"],
         default: "none",
       },
 
@@ -239,6 +239,7 @@ resumeData: {
           "pending",
           "verified",
           "rejected",
+          "revoked",
         ],
         default: "pending",
       },

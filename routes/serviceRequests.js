@@ -19,9 +19,17 @@ router.post("/", auth, async (req, res) => {
       });
     }
 
-    const professional = await User.findById(professionalId).select("name email role");
+    const professional = await User.findById(professionalId).select("name email role workerVerificationStatus accountStatus");
     if (!professional) {
       return res.status(404).json({ message: "Professional not found." });
+    }
+
+    if (professional.accountStatus === "suspended" || professional.accountStatus === "deactivated") {
+      return res.status(403).json({ message: "This professional is not available to receive requests." });
+    }
+
+    if (professional.workerVerificationStatus !== "verified") {
+      return res.status(403).json({ message: "You can only send service requests to verified professionals." });
     }
 
     const serviceRequest = await ServiceRequest.create({

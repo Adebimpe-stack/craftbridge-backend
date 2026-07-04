@@ -251,4 +251,74 @@ router.delete(
     }
   }
 );
+// =========================
+// SUBMIT WORKER VERIFICATION
+// =========================
+router.post(
+  "/verify",
+  auth,
+  upload.fields([
+    { name: "workerVerificationDocuments", maxCount: 10 },
+  ]),
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.role !== "jobseeker") {
+        return res.status(403).json({ message: "Only workers can submit worker verification" });
+      }
+
+      const newDocs = (req.files?.workerVerificationDocuments || []).map(
+        (file) => file.location
+      );
+
+      if (newDocs.length === 0) {
+        return res.status(400).json({ message: "Upload at least one verification document" });
+      }
+
+      const updatedDocs = [
+        ...(user.workerVerificationDocuments || []),
+        ...newDocs,
+      ];
+
+      await User.findByIdAndUpdate(
+        req.user.id,
+        {
+          workerVerificationDocuments: updatedDocs,
+          workerVerificationStatus: "pending",
+          workerRejectionReason: "",
+        },
+        { runValidators: false }
+      );
+
+      res.json({ message: "Verification submitted for review" });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// =========================
+// GET PROFESSIONALS DIRECTORY
+// Only verified workers are publicly visible
+// =========================
+router.get("/directory", async (req, res) => {
+  try {
+    const professionals = await User.find({
+      role: "jobseeker",
+      workerVerificationStatus: "verified",
+      accountStatus: { $nin: ["suspended", "deactivated"] },
+    })
+      .select("-password -emailVerificationToken -resetPasswordToken")
+      .sort({ createdAt: -1 });
+
+    res.json(professionals);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
