@@ -1,28 +1,13 @@
-const express =
-  require("express");
+const express = require("express");
+const Company = require("../models/Company");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const router = express.Router();
+const User = require("../models/User");
+const TeamInvitation = require("../models/TeamInvitation");
+const sendEmail = require("../utils/sendEmail");
 
-const Company =
-  require("../models/Company");
-
-const bcrypt =
-  require("bcryptjs");
-
-const jwt =
-  require("jsonwebtoken");
-
-const crypto =
-  require("crypto");
-
-const router =
-  express.Router();
-
-const User =
-  require("../models/User");
-
-const sendEmail =
-  require("../utils/sendEmail");
-
-const { body, validationResult } = require("express-validator");
 
 
 // ==============================
@@ -31,14 +16,7 @@ const { body, validationResult } = require("express-validator");
 
 router.post(
   "/register",
-  [
-    body("name", "Name is required").not().isEmpty(),
-    body("email", "Please include a valid email").isEmail(),
-    body(
-      "password",
-      "Please enter a password with 6 or more characters"
-    ).isLength({ min: 6 }),
-  ],
+
   async (req, res) => {
 
     try {
@@ -48,13 +26,10 @@ router.post(
         email,
         password,
         role,
-        availabilityFor,
+        invitationToken,
+        companyType,
+        companyName,
       } = req.body;
-
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
 
       // CHECK EXISTING USER
       const existingUser =
@@ -85,6 +60,22 @@ router.post(
           salt
         );
 
+      // Check if registering with invitation token
+      let invitation = null;
+      if (invitationToken) {
+        invitation = await TeamInvitation.findOne({ token: invitationToken });
+        if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
+          return res.status(400).json({
+            message: "Invalid or expired invitation token"
+          });
+        }
+        if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+          return res.status(400).json({
+            message: "Invitation email does not match registration email"
+          });
+        }
+      }
+
       // CREATE USER
       const user =
         await User.create({
@@ -96,41 +87,59 @@ router.post(
           password:
             hashedPassword,
 
-          role,
-          availabilityFor: role === 'jobseeker' ? availabilityFor : undefined,
+          role: invitation ? "employer" : (role || "jobseeker"),
 
           isVerified:
             false,
 
         });
 
-if (role === "employer") {
+      // If registering via invitation, join the company
+      if (invitation) {
+        await User.findByIdAndUpdate(
+          user._id,
+          { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+          { runValidators: false }
+        );
 
-  const company =
-    await Company.create({
+        // Update company team members
+        const company = await Company.findById(invitation.company);
+        if (!company.teamMembers.includes(user._id)) {
+          company.teamMembers.push(user._id);
+          await company.save();
+        }
 
-      name: name,
+        // Update invitation status
+        invitation.status = "accepted";
+        invitation.acceptedAt = new Date();
+        await invitation.save();
+      } else if (role === "employer") {
+        // Regular employer registration creates a new company
+        const company =
+          await Company.create({
 
-      owner: user._id,
+            name: companyName || name,
 
-      teamMembers: [
-        user._id,
-      ],
+            owner: user._id,
 
-      createdBy:
-        user._id,
+            teamMembers: [
+              user._id,
+            ],
 
-    });
+            createdBy:
+              user._id,
 
-  user.companyId =
-    company._id;
+            businessType: companyType || "",
 
-  user.companyRole =
-    "owner";
+          });
 
-  await user.save();
+        await User.findByIdAndUpdate(
+          user._id,
+          { companyId: company._id, companyRole: "owner" },
+          { runValidators: false }
+        );
 
-}
+      }
 
 
       // CREATE VERIFICATION TOKEN
@@ -139,10 +148,11 @@ if (role === "employer") {
           .randomBytes(32)
           .toString("hex");
 
-      user.emailVerificationToken =
-        verificationToken;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { emailVerificationToken: verificationToken },
+        { runValidators: false }
+      );
 
       // VERIFY URL
       const verifyUrl =
@@ -240,7 +250,7 @@ if (role === "employer") {
                   line-height:1.6;
                 "
               >
-                If you didn’t create a
+                If you didn't create a
                 CraftBridge account,
                 you can safely ignore
                 this email.
@@ -271,14 +281,19 @@ if (role === "employer") {
 
       });
 
+      const response = {
+        message: "Account created successfully. Please check your email to verify your account.",
+      };
+
+      if (invitation) {
+        response.joinedCompany = true;
+        response.companyId = user.companyId;
+        response.companyRole = user.companyRole;
+      }
+
       return res
         .status(201)
-        .json({
-
-          message:
-            "Account created successfully. Please check your email to verify your account.",
-
-        });
+        .json(response);
 
     } catch (error) {
 
@@ -349,13 +364,11 @@ router.get(
 
       }
 
-      user.isVerified =
-        true;
-
-      user.emailVerificationToken =
-        undefined;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { isVerified: true, emailVerificationToken: undefined },
+        { runValidators: false }
+      );
 
       return res
         .status(200)
@@ -404,11 +417,17 @@ router.post(
         password,
       } = req.body;
 
+      if (!email || !password) {
+        return res.status(400).json({
+          message: "Email and password are required.",
+        });
+      }
+
       // FIND USER
       const user =
         await User.findOne({
-          email,
-        });
+          email: email.toLowerCase().trim(),
+        }).select("_id name email password role companyId companyRole isVerified accountStatus");
 
       if (!user) {
 
@@ -459,16 +478,15 @@ router.post(
 
 // CHECK ACCOUNT STATUS
 if (user.accountStatus === "suspended") {
+  return res.status(403).json({
+    message: "Your account has been suspended. Please contact support.",
+  });
+}
 
-  return res
-    .status(403)
-    .json({
-
-      message:
-        "Your account has been suspended. Please contact support.",
-
-    });
-
+if (user.accountStatus === "deactivated") {
+  return res.status(403).json({
+    message: "Your account has been deactivated. Please contact support to reactivate.",
+  });
 }
       // CREATE TOKEN
       const token =
@@ -500,15 +518,40 @@ if (user.accountStatus === "suspended") {
         userResponse.companyRole = user.companyRole;
       }
 
+      // Check for pending invitations — with 2s timeout to never block login
+      let pendingInvitations = [];
+      if (!user.companyId) {
+        try {
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 2000)
+          );
+          pendingInvitations = await Promise.race([
+            TeamInvitation.find({
+              email: user.email,
+              status: "pending",
+              expiresAt: { $gt: new Date() }
+            })
+            .populate("company", "name logo")
+            .populate("invitedBy", "name"),
+            timeout
+          ]);
+        } catch (_) {
+          pendingInvitations = [];
+        }
+      }
+
+      const response = {
+        token,
+        user: userResponse,
+      };
+
+      if (pendingInvitations.length > 0) {
+        response.pendingInvitations = pendingInvitations;
+      }
+
       return res
         .status(200)
-        .json({
-
-          token,
-
-          user: userResponse,
-
-        });
+        .json(response);
 
     } catch (error) {
 
@@ -571,10 +614,11 @@ router.post(
           .randomBytes(32)
           .toString("hex");
 
-      user.resetPasswordToken =
-        resetToken;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { resetPasswordToken: resetToken },
+        { runValidators: false }
+      );
 
       // RESET LINK
       const resetLink =
@@ -658,20 +702,11 @@ router.post(
 router.post(
 
   "/reset-password",
-  [
-    body("token", "Token is required").not().isEmpty(),
-    body("password", "Password must be 6 or more characters").isLength({
-      min: 6,
-    }),
-  ],
+
   async (req, res) => {
 
     try {
 
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
       const {
         token,
         password,
@@ -722,16 +757,17 @@ router.post(
       const salt =
         await bcrypt.genSalt(10);
 
-      user.password =
+      const hashedPassword =
         await bcrypt.hash(
           password,
           salt
         );
 
-      user.resetPasswordToken =
-        undefined;
-
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        { password: hashedPassword, resetPasswordToken: undefined },
+        { runValidators: false }
+      );
 
       return res
         .status(200)

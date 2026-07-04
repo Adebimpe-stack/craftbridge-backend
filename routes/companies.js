@@ -4,29 +4,8 @@ const Company = require("../models/Company");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const TeamInvitation = require("../models/TeamInvitation");
-const { body, validationResult } = require("express-validator");
-
-// =========================
-// GET PENDING INVITATIONS FOR USER
-// =========================
-router.get("/invitations/pending", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    const invitations = await TeamInvitation.find({
-      email: user.email,
-      status: "pending",
-      expiresAt: { $gt: new Date() }
-    })
-    .populate("company", "name logo")
-    .populate("invitedBy", "name");
-
-    res.json(invitations);
-  } catch (err) {
-    res.status(500).json({
-      message: err.message
-    });
-  }
-});
+const Application = require("../models/Application");
+const { sendInvitationEmail } = require("../services/emailService");
 
 // =========================
 // GET COMPANY + ITS JOBS
@@ -85,34 +64,26 @@ router.get("/:id", async (req, res) => {
 // =========================
 // UPDATE COMPANY PROFILE
 // =========================
-router.put(
-  "/:id",
-  auth,
-  [
-    body("name").optional().trim().notEmpty().withMessage("Company name cannot be empty."),
-    body("website").optional().isURL().withMessage("Please provide a valid website URL."),
-    body("industry").optional().trim(),
-    body("companySize").optional().isIn(["1-10", "11-50", "51-200", "201-500", "500+"]),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
+router.put("/:id", auth, async (req, res) => {
+  try {
     const company = await Company.findById(req.params.id);
 
     if (!company) {
-      return res.status(404).json({ message: "Company not found" });
+      return res.status(404).json({
+        message: "Company not found"
+      });
     }
 
     // Check if user is owner or admin of the company
     const user = await User.findById(req.user.id);
-    const isMember = company.teamMembers.some(memberId => memberId.equals(user._id));
-    const hasPermission = isMember && (user.companyRole === "owner" || user.companyRole === "admin");
-
-    if (!hasPermission) {
-      return res.status(403).json({ message: "Not authorized to update this company" });
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString() ||
+      (user.companyRole !== "owner" && user.companyRole !== "admin")
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to update this company"
+      });
     }
 
     const {
@@ -138,8 +109,12 @@ router.put(
     await company.save();
 
     res.json(company);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
   }
-);
+});
 
 // =========================
 // GET COMPANY TEAM MEMBERS
@@ -155,9 +130,14 @@ router.get("/:id/team", auth, async (req, res) => {
       });
     }
 
-    // Authorization: Check if the requesting user is a member of the company.
-    if (!company.teamMembers.some(memberId => memberId.equals(req.user.id))) {
-      return res.status(403).json({ message: "Not authorized to view this company's team" });
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to view this company's team"
+      });
     }
 
     res.json(company.teamMembers);
@@ -171,29 +151,46 @@ router.get("/:id/team", auth, async (req, res) => {
 // =========================
 // INVITE TEAM MEMBER
 // =========================
-router.post(
-  "/:id/invite",
-  auth,
-  [
-    body("email").isEmail().withMessage("Please provide a valid email."),
-    body("role").isIn(["admin", "recruiter"]).withMessage("Invalid role. Must be admin or recruiter."),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+router.post("/:id/invite", auth, async (req, res) => {
+  try {
+    const { email, role } = req.body;
+
+    if (!email || !role) {
+      return res.status(400).json({
+        message: "Email and role are required"
+      });
     }
 
-    const { email, role } = req.body;
+    if (!["admin", "recruiter"].includes(role)) {
+      return res.status(400).json({
+        message: "Invalid role. Must be admin or recruiter"
+      });
+    }
 
     const company = await Company.findById(req.params.id);
 
     if (!company) {
-      return res.status(404).json({ message: "Company not found" });
+      return res.status(404).json({
+        message: "Company not found"
+      });
     }
 
-    if (!company.owner.equals(req.user.id)) {
-      return res.status(403).json({ message: "Only company owners can invite team members" });
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString() ||
+      user.companyRole !== "owner"
+    ) {
+      return res.status(403).json({
+        message: "Only company owners can invite team members"
+      });
+    }
+
+    // Subscription required for team management
+    if (!company.subscriptionActive) {
+      return res.status(403).json({
+        message: "An active subscription is required to invite team members. Please upgrade your plan."
+      });
     }
 
     // Check if user already exists
@@ -224,19 +221,169 @@ router.post(
       company: company._id,
       email,
       role,
-      invitedBy: req.user.id,
+      invitedBy: user._id,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
+
+    // Send invitation email
+    try {
+      const emailResult = await sendInvitationEmail({
+        to: email,
+        companyName: company.name,
+        inviterName: user.name,
+        role: role,
+        token: invitation.token,
+        expiryDate: invitation.expiresAt.toLocaleDateString(),
+      });
+
+      if (emailResult.success) {
+        console.log("Invitation email sent successfully to:", email);
+      } else {
+        console.error("Failed to send invitation email:", emailResult.error);
+      }
+    } catch (emailError) {
+      console.error("Error sending invitation email:", emailError);
+      // Do not fail the invitation creation if email sending fails
+    }
 
     res.status(201).json({
       message: "Invitation sent successfully",
       invitation
     });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
   }
-);
+});
 
 // =========================
-// ACCEPT TEAM INVITATION
+// GET INVITATION BY TOKEN (PUBLIC)
+// =========================
+router.get("/invite/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await TeamInvitation.findOne({ token })
+      .populate("company", "name logo")
+      .populate("invitedBy", "name");
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: `Invitation is ${invitation.status}`
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save();
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: invitation.email });
+
+    res.json({
+      valid: true,
+      invitation: {
+        email: invitation.email,
+        companyName: invitation.company.name,
+        companyLogo: invitation.company.logo,
+        role: invitation.role,
+        invitedBy: invitation.invitedBy.name,
+        expiresAt: invitation.expiresAt,
+      },
+      userExists: !!existingUser,
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
+// ACCEPT TEAM INVITATION BY TOKEN
+// =========================
+router.post("/invite/:token/accept", auth, async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await TeamInvitation.findOne({ token });
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: "Invitation is no longer valid"
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save();
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      return res.status(403).json({
+        message: "This invitation is not for your email"
+      });
+    }
+
+    if (user.companyId) {
+      return res.status(400).json({
+        message: "You already belong to a company"
+      });
+    }
+
+    // Update user
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+      { runValidators: false }
+    );
+
+    // Update company team members
+    const company = await Company.findById(invitation.company);
+    if (!company.teamMembers.includes(user._id)) {
+      company.teamMembers.push(user._id);
+      await company.save();
+    }
+
+    // Update invitation
+    invitation.status = "accepted";
+    invitation.acceptedAt = new Date();
+    await invitation.save();
+
+    res.json({
+      message: "Invitation accepted successfully",
+      company
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
+// ACCEPT TEAM INVITATION (LEGACY - BY ID)
 // =========================
 router.post("/invitations/:id/accept", auth, async (req, res) => {
   try {
@@ -276,10 +423,11 @@ router.post("/invitations/:id/accept", auth, async (req, res) => {
     }
 
     // Update user
-    user.companyId = invitation.company;
-    user.companyRole = invitation.role;
-    user.role = "employer";
-    await user.save();
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { companyId: invitation.company, companyRole: invitation.role, role: "employer" },
+      { runValidators: false }
+    );
 
     // Update company team members
     const company = await Company.findById(invitation.company);
@@ -305,6 +453,116 @@ router.post("/invitations/:id/accept", auth, async (req, res) => {
 });
 
 // =========================
+// GET PENDING INVITATIONS FOR USER
+// =========================
+router.get("/invitations/pending", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const invitations = await TeamInvitation.find({
+      email: user.email,
+      status: "pending",
+      expiresAt: { $gt: new Date() }
+    })
+    .populate("company", "name logo")
+    .populate("invitedBy", "name");
+
+    res.json(invitations);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
+// RESEND INVITATION EMAIL
+// =========================
+router.post("/:id/invitations/:invitationId/resend", auth, async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString() ||
+      user.companyRole !== "owner"
+    ) {
+      return res.status(403).json({
+        message: "Only company owners can resend invitations"
+      });
+    }
+
+    const invitation = await TeamInvitation.findById(req.params.invitationId);
+
+    if (!invitation) {
+      return res.status(404).json({
+        message: "Invitation not found"
+      });
+    }
+
+    if (invitation.company.toString() !== company._id.toString()) {
+      return res.status(403).json({
+        message: "Invitation does not belong to this company"
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(400).json({
+        message: "Can only resend pending invitations"
+      });
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      return res.status(400).json({
+        message: "Invitation has expired"
+      });
+    }
+
+    // Resend invitation email
+    try {
+      const emailResult = await sendInvitationEmail({
+        to: invitation.email,
+        companyName: company.name,
+        inviterName: user.name,
+        role: invitation.role,
+        token: invitation.token,
+        expiryDate: invitation.expiresAt.toLocaleDateString(),
+      });
+
+      if (emailResult.success) {
+        console.log("Invitation email resent successfully to:", invitation.email);
+        res.json({
+          message: "Invitation email resent successfully",
+          messageId: emailResult.messageId
+        });
+      } else {
+        console.error("Failed to resend invitation email:", emailResult.error);
+        res.status(500).json({
+          message: "Failed to resend invitation email",
+          error: emailResult.error
+        });
+      }
+    } catch (emailError) {
+      console.error("Error resending invitation email:", emailError);
+      res.status(500).json({
+        message: "Error resending invitation email",
+        error: emailError.message
+      });
+    }
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
 // REMOVE TEAM MEMBER
 // =========================
 router.delete("/:id/team/:userId", auth, async (req, res) => {
@@ -317,8 +575,15 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
       });
     }
 
-    if (!company.owner.equals(req.user.id)) {
-      return res.status(403).json({ message: "Only company owners can remove team members" });
+    const requestingUser = await User.findById(req.user.id);
+    if (
+      !requestingUser.companyId ||
+      requestingUser.companyId.toString() !== company._id.toString() ||
+      requestingUser.companyRole !== "owner"
+    ) {
+      return res.status(403).json({
+        message: "Only company owners can remove team members"
+      });
     }
 
     const memberToRemove = await User.findById(req.params.userId);
@@ -328,7 +593,7 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
       });
     }
 
-    if (!memberToRemove.companyId || !memberToRemove.companyId.equals(company._id)) {
+    if (memberToRemove.companyId.toString() !== company._id.toString()) {
       return res.status(400).json({
         message: "User is not a member of this company"
       });
@@ -347,10 +612,11 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
     await company.save();
 
     // Remove user's company association
-    memberToRemove.companyId = null;
-    memberToRemove.companyRole = null;
-    memberToRemove.role = "jobseeker";
-    await memberToRemove.save();
+    await User.findByIdAndUpdate(
+      req.params.userId,
+      { companyId: null, companyRole: null, role: "jobseeker" },
+      { runValidators: false }
+    );
 
     res.json({
       message: "Team member removed successfully"
@@ -363,18 +629,90 @@ router.delete("/:id/team/:userId", auth, async (req, res) => {
 });
 
 // =========================
+// GET COMPANY DASHBOARD STATS
+// =========================
+router.get("/:id/dashboard", auth, async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (
+      !user.companyId ||
+      user.companyId.toString() !== company._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to view this company's dashboard"
+      });
+    }
+
+    // Get company jobs
+    const jobs = await Job.find({ companyId: company._id });
+    const totalJobs = jobs.length;
+    const activeJobs = jobs.filter(job => job.status !== "closed").length;
+
+    // Get applicants for all company jobs
+    const jobIds = jobs.map(job => job._id);
+    const applications = await Application.find({
+      job: { $in: jobIds }
+    });
+    const totalApplicants = applications.length;
+
+    // Get pending invitations
+    const pendingInvitations = await TeamInvitation.find({
+      company: company._id,
+      status: "pending",
+      expiresAt: { $gt: new Date() }
+    });
+
+    // Get team members count
+    const teamMembersCount = company.teamMembers.length;
+
+    res.json({
+      company: {
+        name: company.name,
+        subscriptionPlan: company.subscriptionPlan,
+        jobsPosted: company.jobsPosted,
+        subscriptionActive: company.subscriptionActive,
+        verificationStatus: company.verificationStatus,
+        businessType: company.businessType || "",
+      },
+      stats: {
+        totalJobs,
+        activeJobs,
+        totalApplicants,
+        teamMembersCount,
+        pendingInvitations: pendingInvitations.length,
+      },
+      jobsRemaining: company.subscriptionActive 
+        ? -1 // unlimited for active subscriptions
+        : Math.max(0, 1 - company.jobsPosted), // free plan: 1 job
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+});
+
+// =========================
 // UPDATE TEAM MEMBER ROLE
 // =========================
-router.put(
-  "/:id/team/:userId/role",
-  auth,
-  [body("role").isIn(["admin", "recruiter"]).withMessage("Invalid role. Must be admin or recruiter.")],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+router.put("/:id/team/:userId/role", auth, async (req, res) => {
+  try {
     const { role } = req.body;
+
+    // Validate role
+    if (!role || !["admin", "recruiter"].includes(role)) {
+      return res.status(400).json({
+        message: "Invalid role. Must be admin or recruiter"
+      });
+    }
 
     const company = await Company.findById(req.params.id);
 
@@ -384,8 +722,15 @@ router.put(
       });
     }
 
-    if (!company.owner.equals(req.user.id)) {
-      return res.status(403).json({ message: "Only company owners can update team member roles" });
+    const requestingUser = await User.findById(req.user.id);
+    if (
+      !requestingUser.companyId ||
+      requestingUser.companyId.toString() !== company._id.toString() ||
+      requestingUser.companyRole !== "owner"
+    ) {
+      return res.status(403).json({
+        message: "Only company owners can update team member roles"
+      });
     }
 
     const memberToUpdate = await User.findById(req.params.userId);
@@ -395,7 +740,7 @@ router.put(
       });
     }
 
-    if (!memberToUpdate.companyId || !memberToUpdate.companyId.equals(company._id)) {
+    if (memberToUpdate.companyId.toString() !== company._id.toString()) {
       return res.status(400).json({
         message: "User is not a member of this company"
       });
@@ -408,8 +753,11 @@ router.put(
     }
 
     // Update user's role
-    memberToUpdate.companyRole = role;
-    await memberToUpdate.save();
+    await User.findByIdAndUpdate(
+      req.params.userId,
+      { companyRole: role },
+      { runValidators: false }
+    );
 
     res.json({
       message: "Team member role updated successfully",
@@ -417,146 +765,14 @@ router.put(
         _id: memberToUpdate._id,
         name: memberToUpdate.name,
         email: memberToUpdate.email,
-        companyRole: memberToUpdate.companyRole
+        companyRole: role
       }
     });
-  }
-);
-
-// =========================
-// REQUEST COMPANY STATUS CHANGE (DEACTIVATION/REACTIVATION)
-// =========================
-router.post(
-  "/:id/request-status-change",
-  auth,
-  [
-    body("requestType").isIn(["deactivation", "reactivation"]).withMessage("Invalid request type."),
-    body("reason", "A reason for the request is required").not().isEmpty().trim(),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { requestType, reason } = req.body;
-
-    const company = await Company.findById(req.params.id);
-    if (!company) {
-      return res.status(404).json({ message: "Company not found" });
-    }
-
-    if (company.owner.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ message: "Only the company owner can make this request" });
-    }
-
-    if (company.deactivationRequest && company.deactivationRequest.status === 'pending') {
-      return res.status(400).json({ message: "You already have a pending status change request" });
-    }
-
-    if (requestType === 'deactivation' && !company.isActive) {
-      return res.status(400).json({ message: "Company is already inactive." });
-    }
-
-    if (requestType === 'reactivation' && company.isActive) {
-      return res.status(400).json({ message: "Company is already active." });
-    }
-
-    company.deactivationRequest = {
-      requestType,
-      reason,
-      requestedBy: req.user.id,
-      requestedAt: new Date(),
-      status: 'pending'
-    };
-    await company.save();
-
-    res.json({ message: "Your request has been submitted for admin review.", company });
-  }
-);
-
-// =========================
-// REQUEST ACCOUNT TYPE CHANGE
-// =========================
-router.post(
-  "/:id/request-type-change",
-  auth,
-  [
-    body("requestedType").isIn(["employer", "agency"]).withMessage("Invalid requested type."),
-    body("reason", "Reason is required").not().isEmpty().trim(),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-    const { requestedType, reason } = req.body;
-
-    const company = await Company.findById(req.params.id);
-    if (!company) {
-      return res.status(404).json({ message: "Company not found" });
-    }
-
-    if (company.owner.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ message: "Only company owner can request type change" });
-    }
-
-    if (company.typeChangeRequest && company.typeChangeRequest.status === 'pending') {
-      return res.status(400).json({ message: "You already have a pending type change request" });
-    }
-
-    company.typeChangeRequest = {
-      requestedType,
-      currentType: company.companyType,
-      reason,
-      requestedBy: req.user.id,
-      requestedAt: new Date(),
-      status: 'pending'
-    };
-    await company.save();
-
-    res.json({
-      message: "Account type change request submitted for admin review",
-      typeChangeRequest: company.typeChangeRequest
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
     });
   }
-);
-
-// =========================
-// REQUEST ACCOUNT DELETION (SOFT DELETE)
-// =========================
-router.post(
-  "/:id/request-deletion",
-  auth,
-  async (req, res) => {
-    const company = await Company.findById(req.params.id);
-    if (!company) {
-      return res.status(404).json({ message: "Company not found" });
-    }
-
-    if (company.owner.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ message: "Only company owner can request deletion" });
-    }
-
-    company.deletionRequest = {
-      requestedBy: req.user.id,
-      requestedAt: new Date(),
-      status: 'pending',
-      scheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days grace period
-    };
-    company.isActive = false;
-    await company.save();
-
-    await Job.updateMany(
-      { companyId: company._id, status: "active" },
-      { $set: { status: "closed", closedReason: "Company marked for deletion" } }
-    );
-
-    res.json({
-      message: "Account deletion request submitted. Your account will be marked for deletion after the grace period.",
-      company
-    });
-  }
-);
+});
 
 module.exports = router;

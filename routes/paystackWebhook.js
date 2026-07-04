@@ -46,17 +46,23 @@ router.post("/paystack/webhook", async (req, res) => {
         Date.now() + 30 * 24 * 60 * 60 * 1000
       );
 
-      user.subscription = {
+      const subscription = {
         plan: "paid",
         isActive: true,
         startDate: new Date(),
         expiresAt: subscriptionExpiry,
       };
-      user.subscriptionPlan = "paid";
-      user.subscriptionActive = true;
-      user.subscriptionExpiry = subscriptionExpiry;
 
-      await user.save();
+      await User.findByIdAndUpdate(
+        user._id,
+        {
+          subscription,
+          subscriptionPlan: "paid",
+          subscriptionActive: true,
+          subscriptionExpiry,
+        },
+        { runValidators: false }
+      );
 
       console.log(`Subscription activated for ${email}`);
     }
