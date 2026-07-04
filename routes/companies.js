@@ -32,6 +32,34 @@ const optionalAuth = async (req, res, next) => {
 };
 
 // =========================
+// LIST ALL COMPANIES (Public)
+// =========================
+router.get("/", async (req, res) => {
+  try {
+    const companies = await Company.find({}).sort({ createdAt: -1 }).lean();
+
+    // Count active, non-deleted jobs per company
+    const companiesWithJobCount = await Promise.all(
+      companies.map(async (company) => {
+        const jobCount = await Job.countDocuments({
+          companyId: company._id,
+          status: "active",
+          isDeleted: false,
+        });
+        return {
+          ...company,
+          jobCount,
+        };
+      })
+    );
+
+    res.json(companiesWithJobCount);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =========================
 // GET COMPANY + ITS JOBS
 // Public: only active, non-deleted jobs
 // Company members: all jobs including deleted
