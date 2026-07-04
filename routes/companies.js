@@ -33,40 +33,49 @@ const optionalAuth = async (req, res, next) => {
 
 // =========================
 // LIST ALL COMPANIES (Public)
-// Includes Company records + employers without a Company record
+// Returns every Company record + every employer account that is not
+// already represented by a Company record.
 // =========================
 router.get("/", async (req, res) => {
   try {
-    const companies = await Company.find({}).sort({ createdAt: -1 }).lean();
+    const [companies, allEmployers] = await Promise.all([
+      Company.find({}).sort({ createdAt: -1 }).lean(),
+      User.find({ role: "employer" }).sort({ createdAt: -1 }).lean(),
+    ]);
 
-    // Find employers who don't have a linked Company record yet
-    const employersWithoutCompany = await User.find({
-      role: "employer",
-      $or: [
-        { companyId: { $exists: false } },
-        { companyId: null },
-      ],
-    }).sort({ createdAt: -1 }).lean();
+    // Build set of company ids and owner ids already covered by Company records
+    const companyIds = new Set(companies.map((c) => c._id.toString()));
+    const coveredOwnerIds = new Set(companies.map((c) => c.owner?.toString()).filter(Boolean));
 
-    // Map employers to the same shape as companies
-    const employerCompanies = employersWithoutCompany.map((user) => ({
-      _id: user._id,
-      name: user.name || "Unnamed Company",
-      description: user.description || "",
-      logo: user.profilePicture || "",
-      website: user.website || "",
-      industry: user.industry || "",
-      companySize: user.companySize || "",
-      location: user.location || "",
-      businessType: user.companyType || "",
-      owner: user._id,
-      createdAt: user.createdAt,
-      isEmployerRecord: true,
-    }));
+    // Map remaining employers to the same shape as companies
+    const employerCompanies = allEmployers
+      .filter((user) => {
+        const userId = user._id.toString();
+        const linkedCompanyId = user.companyId?.toString();
+        // Skip if this user is already the owner of an existing company
+        if (coveredOwnerIds.has(userId)) return false;
+        // Skip if the user's linked company already exists in the DB
+        if (linkedCompanyId && companyIds.has(linkedCompanyId)) return false;
+        return true;
+      })
+      .map((user) => ({
+        _id: user._id,
+        name: user.name || "Unnamed Company",
+        description: user.description || "",
+        logo: user.profilePicture || "",
+        website: user.website || "",
+        industry: user.industry || "",
+        companySize: user.companySize || "",
+        location: user.location || "",
+        businessType: user.companyType || "",
+        owner: user._id,
+        createdAt: user.createdAt,
+        isEmployerRecord: true,
+      }));
 
     const allCompanies = [...companies, ...employerCompanies];
 
-    // Count active, non-deleted jobs per company
+    // Count active, non-deleted jobs per company/employer
     const companiesWithJobCount = await Promise.all(
       allCompanies.map(async (company) => {
         const jobCount = await Job.countDocuments({
