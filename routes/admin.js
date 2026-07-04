@@ -699,4 +699,77 @@ router.post("/migrate/verification-status", auth, requireRole("admin"), async (r
   }
 });
 
+// =======================
+// SYNC COMPANY DOCUMENTS WITH OWNER USER DATA
+// Backfills existing Company records from their owner's User profile
+// without requiring users to manually re-save their profiles.
+// =======================
+router.post("/sync-companies-from-owners", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const companies = await Company.find({ owner: { $exists: true, $ne: null } }).lean();
+    const ownerIds = companies.map((c) => c.owner.toString());
+    const users = await User.find({ _id: { $in: ownerIds } }).lean();
+    const userById = new Map(users.map((u) => [u._id.toString(), u]));
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const company of companies) {
+      const user = userById.get(company.owner.toString());
+      if (!user) {
+        skipped++;
+        continue;
+      }
+
+      const updates = {};
+
+      if (!company.name || company.name === "Unnamed Company") {
+        updates.name = user.name || user.companyName || "Unnamed Company";
+      }
+      if (!company.logo) {
+        updates.logo = user.profilePicture || "";
+      }
+      if (!company.industry) {
+        updates.industry = user.industry || user.companyType || company.businessType || "";
+      }
+      if (!company.businessType) {
+        updates.businessType = user.companyType || company.businessType || "";
+      }
+      if (!company.companySize) {
+        updates.companySize = user.companySize || "";
+      }
+      if (!company.location) {
+        updates.location = user.location || "";
+      }
+      if (!company.website) {
+        updates.website = user.website || "";
+      }
+      if (!company.description) {
+        updates.description = user.description || user.bio || user.professionalSummary || "";
+      }
+      if (!company.cacNumber) {
+        updates.cacNumber = user.cacNumber || "";
+      }
+      if (!company.verificationStatus || company.verificationStatus === "pending") {
+        updates.verificationStatus = user.verificationStatus || company.verificationStatus || "pending";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await Company.findByIdAndUpdate(company._id, updates, { runValidators: false });
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    res.json({
+      message: `Sync complete. ${updated} companies updated, ${skipped} skipped.`,
+      updated,
+      skipped,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
