@@ -515,13 +515,6 @@ router.post(
   async (req, res) => {
     try {
 
-      // EMAIL VERIFICATION REQUIRED
-      if (!req.user.isVerified) {
-        return res.status(403).json({
-          message: "Please verify your email before applying for jobs.",
-        });
-      }
-
 const job = await Job.findOne({
   _id: req.params.id,
   status: "active",
