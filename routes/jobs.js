@@ -17,6 +17,8 @@ const User =
 const auth =
   require("../middleware/auth");
 
+const upload = require("../middleware/upload");
+
 const { body, validationResult } = require("express-validator");
 
 // =========================
@@ -618,6 +620,7 @@ res.json({
 router.post(
   "/:id/apply",
   auth,
+  upload.single("resume"),
   async (req, res) => {
     try {
 
@@ -646,10 +649,14 @@ if (existingApplication) {
   });
 }
 
+const user = await User.findById(req.user.id);
+const resumeUrl = req.file?.location || req.body?.resumeUrl || user?.resumeUrl || "";
+
 const application =
   new Application({
     job: job._id,
     applicant: req.user._id,
+    resume: resumeUrl,
     coverLetter:
       req.body?.coverLetter || "",
   });
