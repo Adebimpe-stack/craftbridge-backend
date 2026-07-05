@@ -227,16 +227,24 @@ router.get(
 
     try {
 
-      const jobs =
-        await Job.find({
-          status: "active",
-          isDeleted: false,
-        })
-          .sort({
-            createdAt: -1,
-          });
+      const jobs = await Job.find({
+        status: "active",
+        isDeleted: false,
+      })
+        .populate("companyId", "name verificationStatus subscriptionActive")
+        .sort({ createdAt: -1 });
 
-      res.json(jobs);
+      const formattedJobs = jobs.map((job) => {
+        const company = job.companyId;
+        return {
+          ...job.toObject(),
+          companyName: company?.name || "Confidential",
+          companyVerified: company?.verificationStatus === "verified",
+          companySubscribed: company?.subscriptionActive || false,
+        };
+      });
+
+      res.json(formattedJobs);
 
     } catch (error) {
 
@@ -262,23 +270,25 @@ router.get(
 
     try {
 
-      const job =
-        await Job.findOne({
-          _id: req.params.id,
-          status: "active",
-          isDeleted: false,
-        });
+      const job = await Job.findOne({
+        _id: req.params.id,
+        status: "active",
+        isDeleted: false,
+      }).populate("companyId", "name verificationStatus subscriptionActive");
 
       if (!job) {
-
         return res.status(404).json({
-          message:
-            "Job not found",
+          message: "Job not found",
         });
-
       }
 
-      res.json(job);
+      const company = job.companyId;
+      res.json({
+        ...job.toObject(),
+        companyName: company?.name || "Confidential",
+        companyVerified: company?.verificationStatus === "verified",
+        companySubscribed: company?.subscriptionActive || false,
+      });
 
     } catch (error) {
 
