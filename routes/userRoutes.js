@@ -140,6 +140,70 @@ router.get(
 );
 
 // ==============================
+// GET CURRENT VERIFICATION STATUS & ADMIN MESSAGE
+// ==============================
+
+router.get("/verification-status", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isEmployer = user.role === "employer";
+    let company = null;
+    if (isEmployer && user.companyId) {
+      company = await Company.findById(user.companyId).lean();
+    }
+
+    const status = isEmployer
+      ? (company?.verificationStatus || user.verificationStatus || "none")
+      : (user.workerVerificationStatus || "none");
+
+    const rejectionReason = isEmployer
+      ? (company?.rejectionReason || user.rejectionReason || "")
+      : (user.workerRejectionReason || "");
+
+    const documentsApproved = isEmployer
+      ? (company?.documentsApproved || user.documentsApproved || false)
+      : (status === "verified");
+
+    const documents = isEmployer
+      ? (company?.verificationDocuments || user.verificationDocuments || [])
+      : (user.workerVerificationDocuments || user.verificationEvidence || []);
+
+    const latestRequest = await VerificationLog.findOne({
+      user: user._id,
+      action: "request_info",
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const latestStatusChange = await VerificationLog.findOne({
+      user: user._id,
+      action: "status_change",
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      type: isEmployer ? "business" : "worker",
+      status,
+      statusLabel: status.replace("_", " "),
+      rejectionReason,
+      infoRequestedMessage: latestRequest?.requestedInfo || "",
+      infoRequestedAt: latestRequest?.createdAt || null,
+      documentsApproved,
+      documentsCount: documents.length,
+      lastAdminAction: latestStatusChange?.createdAt || null,
+      canSubmit: ["none", "rejected", "info_requested"].includes(status),
+      canUpload: !["pending", "verified"].includes(status),
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ==============================
 // UPDATE COMPANY PROFILE
 // ==============================
 
