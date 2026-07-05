@@ -731,11 +731,38 @@ router.post("/migrate/verification-status", auth, requireRole("admin"), async (r
       { $set: { verificationStatus: "pending" } }
     );
 
+    // Backfill documentsApproved for existing accounts based on current status
+    const userApprovedResult = await User.updateMany(
+      { verificationStatus: "verified", documentsApproved: { $ne: true } },
+      { $set: { documentsApproved: true } }
+    );
+
+    const userNotApprovedResult = await User.updateMany(
+      { verificationStatus: { $ne: "verified" }, documentsApproved: { $ne: false } },
+      { $set: { documentsApproved: false } }
+    );
+
+    const companyApprovedResult = await Company.updateMany(
+      { verificationStatus: "verified", documentsApproved: { $ne: true } },
+      { $set: { documentsApproved: true } }
+    );
+
+    const companyNotApprovedResult = await Company.updateMany(
+      { verificationStatus: { $ne: "verified" }, documentsApproved: { $ne: false } },
+      { $set: { documentsApproved: false } }
+    );
+
     res.json({
       message: "Migration complete",
       workerVerificationStatusFixed: wvsResult.modifiedCount,
       userVerificationStatusFixed: vsResult.modifiedCount,
       companyVerificationStatusFixed: companyResult.modifiedCount,
+      documentsApprovedBackfill: {
+        usersApproved: userApprovedResult.modifiedCount,
+        usersNotApproved: userNotApprovedResult.modifiedCount,
+        companiesApproved: companyApprovedResult.modifiedCount,
+        companiesNotApproved: companyNotApprovedResult.modifiedCount,
+      },
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

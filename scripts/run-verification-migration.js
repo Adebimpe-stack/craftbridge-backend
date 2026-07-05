@@ -56,10 +56,36 @@ async function migrate() {
     { $set: { verificationStatus: "pending" } }
   );
 
+  const userApprovedResult = await User.updateMany(
+    { verificationStatus: "verified", documentsApproved: { $ne: true } },
+    { $set: { documentsApproved: true } }
+  );
+
+  const userNotApprovedResult = await User.updateMany(
+    { verificationStatus: { $ne: "verified" }, documentsApproved: { $ne: false } },
+    { $set: { documentsApproved: false } }
+  );
+
+  const companyApprovedResult = await Company.updateMany(
+    { verificationStatus: "verified", documentsApproved: { $ne: true } },
+    { $set: { documentsApproved: true } }
+  );
+
+  const companyNotApprovedResult = await Company.updateMany(
+    { verificationStatus: { $ne: "verified" }, documentsApproved: { $ne: false } },
+    { $set: { documentsApproved: false } }
+  );
+
   return {
     workerVerificationStatusFixed: wvsResult.modifiedCount,
     userVerificationStatusFixed: vsResult.modifiedCount,
     companyVerificationStatusFixed: companyResult.modifiedCount,
+    documentsApprovedBackfill: {
+      usersApproved: userApprovedResult.modifiedCount,
+      usersNotApproved: userNotApprovedResult.modifiedCount,
+      companiesApproved: companyApprovedResult.modifiedCount,
+      companiesNotApproved: companyNotApprovedResult.modifiedCount,
+    },
   };
 }
 
