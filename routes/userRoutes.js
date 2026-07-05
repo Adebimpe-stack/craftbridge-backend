@@ -842,6 +842,23 @@ router.put(
 
       }
 
+      const company = user.companyId ? await Company.findById(user.companyId).lean() : null;
+      const phone = company?.phone || user.phone || "";
+      const companyEmail = company?.companyEmail || user.companyEmail || user.email || "";
+      const linkedin = company?.linkedin || user.linkedin || user.socialLinks?.linkedin || "";
+
+      const required = [
+        { value: phone, name: "Phone number" },
+        { value: companyEmail, name: "Company email" },
+        { value: linkedin, name: "LinkedIn company page" },
+      ];
+      const missing = required.filter((r) => !r.value || r.value.trim() === "");
+      if (missing.length > 0) {
+        return res.status(400).json({
+          message: `Please complete the following required fields before submitting: ${missing.map((m) => m.name).join(", ")}`,
+        });
+      }
+
       await User.findByIdAndUpdate(
         req.user.id,
         { verificationStatus: "pending", isCompanyVerified: false, documentsApproved: false },
@@ -862,6 +879,14 @@ router.put(
         action: "submit",
         fromStatus: "none",
         toStatus: "pending",
+        metadata: {
+          phone,
+          companyEmail,
+          linkedin,
+          companyName: company?.name || user.companyName || "",
+          industry: company?.industry || "",
+          location: company?.location || user.location || "",
+        },
       });
 
       res.json({
