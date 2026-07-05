@@ -231,11 +231,15 @@ router.post("/verification-resubmit", protect, async (req, res) => {
     const newStatus = "pending";
 
     if (target) {
-      target.verificationStatus = newStatus;
-      await target.save();
+      await Company.updateOne(
+        { _id: target._id },
+        { $set: { verificationStatus: newStatus } }
+      );
     } else {
-      user.workerVerificationStatus = newStatus;
-      await user.save();
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { workerVerificationStatus: newStatus } }
+      );
     }
 
     await VerificationLog.create({
