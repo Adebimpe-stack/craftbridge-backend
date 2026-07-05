@@ -104,6 +104,7 @@ router.get(
             location: company.location || "",
             description: company.description || "",
             website: company.website || "",
+            linkedin: company.linkedin || "",
             logo: company.logo || "",
             cacNumber: company.cacNumber || "",
             companyEmail: company.companyEmail || user.email || "",
@@ -324,6 +325,12 @@ router.put(
         req.body.website ||
         user.website;
 
+      user.linkedin =
+        req.body.linkedin ||
+        user.linkedin ||
+        user.socialLinks?.linkedin ||
+        "";
+
       user.location =
         req.body.location ||
         user.location;
@@ -362,6 +369,7 @@ router.put(
       const companyUpdateFields = {
         name: incomingCompanyName || user.name,
         website: req.body.website || user.website || "",
+        linkedin: req.body.linkedin || user.linkedin || user.socialLinks?.linkedin || "",
         industry: req.body.industry || "",
         companySize: req.body.companySize || "",
         location: req.body.location || user.location || "",
@@ -406,6 +414,8 @@ router.put(
         {
           phone: user.phone,
           website: user.website,
+          linkedin: user.linkedin,
+          "socialLinks.linkedin": user.linkedin,
           location: user.location,
           cacNumber: user.cacNumber,
           companyEmail: user.companyEmail,

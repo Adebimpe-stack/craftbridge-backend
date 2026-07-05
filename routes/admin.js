@@ -968,6 +968,7 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
             location: company.location || "",
             description: company.description || "",
             website: company.website || "",
+            linkedin: company.linkedin || "",
             logo: company.logo || "",
             cacNumber: company.cacNumber || "",
             verificationStatus: company.verificationStatus || "none",

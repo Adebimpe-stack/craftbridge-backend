@@ -23,6 +23,11 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+    linkedin: {
+      type: String,
+      default: "",
+    },
+
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
