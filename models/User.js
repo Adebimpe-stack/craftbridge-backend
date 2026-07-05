@@ -25,6 +25,23 @@ const userSchema =
         required: true,
       },
 
+      phone: {
+        type: String,
+        default: "",
+      },
+
+      companyEmail: {
+        type: String,
+        default: "",
+        trim: true,
+        lowercase: true,
+      },
+
+      linkedin: {
+        type: String,
+        default: "",
+      },
+
       role: {
         type: String,
         enum: [

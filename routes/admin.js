@@ -960,8 +960,8 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
         ? {
             _id: company._id,
             name: company.name,
-            email: company.companyEmail || user.email || "",
-            phone: user.phone || "",
+            email: company.companyEmail || user.companyEmail || user.email || "",
+            phone: company.phone || user.phone || "",
             industry: company.industry || "",
             companySize: company.companySize || "",
             businessType: company.businessType || "",

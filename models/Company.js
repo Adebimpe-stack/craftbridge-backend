@@ -115,6 +115,11 @@ const companySchema = new mongoose.Schema(
       lowercase: true,
     },
 
+    phone: {
+      type: String,
+      default: "",
+    },
+
     // Company status
     isActive: {
       type: Boolean,
