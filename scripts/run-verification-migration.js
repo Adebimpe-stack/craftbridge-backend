@@ -87,7 +87,8 @@ async function migrate() {
 
   const companySizeResult = await Company.updateMany(
     { companySize: { $nin: allowedCompanySizes } },
-    { $set: { companySize: "" } }
+    { $set: { companySize: "" } },
+    { runValidators: false }
   );
 
   return {
@@ -154,6 +155,7 @@ async function run() {
       console.log(`workerVerificationStatus fixed: ${results.workerVerificationStatusFixed}`);
       console.log(`user verificationStatus fixed: ${results.userVerificationStatusFixed}`);
       console.log(`company verificationStatus fixed: ${results.companyVerificationStatusFixed}`);
+      console.log(`companySize fixed: ${results.companySizeFixed}`);
     }
 
     if (auditOnly && migrateOnly) {
