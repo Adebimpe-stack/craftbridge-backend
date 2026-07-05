@@ -577,6 +577,9 @@ if (user.accountStatus === "deactivated") {
         }
       }
 
+      // Update last login timestamp
+      await User.findByIdAndUpdate(user._id, { lastLogin: new Date() }, { runValidators: false });
+
       const response = {
         token,
         user: userResponse,

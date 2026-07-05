@@ -102,7 +102,7 @@ const userSchema =
       },
       workerVerificationStatus: {
         type: String,
-        enum: ["none", "pending", "verified", "rejected", "revoked"],
+        enum: ["none", "pending", "verified", "rejected", "revoked", "info_requested"],
         default: "none",
       },
 
@@ -240,6 +240,7 @@ resumeData: {
           "verified",
           "rejected",
           "revoked",
+          "info_requested",
         ],
         default: "none",
       },
@@ -335,6 +336,10 @@ companyRole: {
       createdAt: {
         type: Date,
         default: Date.now,
+      },
+
+      lastLogin: {
+        type: Date,
       },
 
       reportsReceived: {

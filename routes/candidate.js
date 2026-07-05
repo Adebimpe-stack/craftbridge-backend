@@ -10,6 +10,9 @@ const User = require("../models/User");
 const Application =
   require("../models/Application");
 
+const VerificationLog =
+  require("../models/VerificationLog");
+
 // GET ALL JOBS APPLIED BY USER
 
 router.get(
@@ -293,6 +296,14 @@ router.post(
         },
         { runValidators: false }
       );
+
+      await VerificationLog.create({
+        user: user._id,
+        type: "worker",
+        action: "submit",
+        fromStatus: "none",
+        toStatus: "pending",
+      });
 
       res.json({ message: "Verification submitted for review" });
     } catch (err) {

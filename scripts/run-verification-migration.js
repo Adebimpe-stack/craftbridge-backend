@@ -6,9 +6,9 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const Company = require("../models/Company");
 
-const allowedWvs = ["none", "pending", "verified", "rejected", "revoked"];
-const allowedVs = ["none", "pending", "verified", "rejected", "revoked"];
-const allowedCompanyVs = ["none", "pending", "verified", "rejected", "revoked"];
+const allowedWvs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
+const allowedVs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
+const allowedCompanyVs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
 
 async function audit() {
   const invalidWorkerStatus = await User.find({

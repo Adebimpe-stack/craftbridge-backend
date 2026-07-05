@@ -13,6 +13,9 @@ const Company =
 const Job =
   require("../models/Job");
 
+const VerificationLog =
+  require("../models/VerificationLog");
+
 const protect =
   require("../middleware/auth");
 
@@ -717,6 +720,14 @@ router.put(
           { runValidators: false }
         );
       }
+
+      await VerificationLog.create({
+        user: user._id,
+        type: "business",
+        action: "submit",
+        fromStatus: "none",
+        toStatus: "pending",
+      });
 
       res.json({
         message:

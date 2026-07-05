@@ -52,7 +52,7 @@ const companySchema = new mongoose.Schema(
     // Company verification status
     verificationStatus: {
       type: String,
-      enum: ["none", "pending", "verified", "rejected", "revoked"],
+      enum: ["none", "pending", "verified", "rejected", "revoked", "info_requested"],
       default: "none",
     },
 
