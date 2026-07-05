@@ -9,6 +9,7 @@ const Company = require("../models/Company");
 const allowedWvs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
 const allowedVs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
 const allowedCompanyVs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
+const allowedCompanySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
 
 async function audit() {
   const invalidWorkerStatus = await User.find({
@@ -24,6 +25,10 @@ async function audit() {
     verificationStatus: { $nin: allowedCompanyVs },
   }).select("_id name owner verificationStatus");
 
+  const invalidCompanySizes = await Company.find({
+    companySize: { $nin: allowedCompanySizes },
+  }).select("_id name owner companySize");
+
   return {
     workerVerificationStatus: {
       count: invalidWorkerStatus.length,
@@ -36,6 +41,10 @@ async function audit() {
     companyVerificationStatus: {
       count: invalidCompanyStatus.length,
       documents: invalidCompanyStatus,
+    },
+    companySize: {
+      count: invalidCompanySizes.length,
+      documents: invalidCompanySizes,
     },
   };
 }
@@ -76,6 +85,11 @@ async function migrate() {
     { $set: { documentsApproved: false } }
   );
 
+  const companySizeResult = await Company.updateMany(
+    { companySize: { $nin: allowedCompanySizes } },
+    { $set: { companySize: "" } }
+  );
+
   return {
     workerVerificationStatusFixed: wvsResult.modifiedCount,
     userVerificationStatusFixed: vsResult.modifiedCount,
@@ -86,6 +100,7 @@ async function migrate() {
       companiesApproved: companyApprovedResult.modifiedCount,
       companiesNotApproved: companyNotApprovedResult.modifiedCount,
     },
+    companySizeFixed: companySizeResult.modifiedCount,
   };
 }
 
@@ -126,6 +141,10 @@ async function run() {
       console.log(`Invalid company verificationStatus: ${results.companyVerificationStatus.count}`);
       if (results.companyVerificationStatus.count > 0) {
         console.log(results.companyVerificationStatus.documents);
+      }
+      console.log(`Invalid companySize: ${results.companySize.count}`);
+      if (results.companySize.count > 0) {
+        console.log(results.companySize.documents);
       }
     }
 
