@@ -624,6 +624,24 @@ router.post(
   async (req, res) => {
     try {
 
+const user = await User.findById(req.user.id);
+
+if (!user) {
+  return res.status(404).json({ message: "User not found" });
+}
+
+if (user.role === "employer") {
+  return res.status(403).json({
+    message: "Employers cannot apply for jobs. Please create a job seeker account.",
+  });
+}
+
+if (user.role === "admin") {
+  return res.status(403).json({
+    message: "Admins cannot apply for jobs.",
+  });
+}
+
 const job = await Job.findOne({
   _id: req.params.id,
   status: "active",
@@ -649,7 +667,6 @@ if (existingApplication) {
   });
 }
 
-const user = await User.findById(req.user.id);
 const resumeUrl = req.file?.location || req.body?.resumeUrl || user?.resumeUrl || "";
 
 const application =
