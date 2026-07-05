@@ -137,7 +137,7 @@ req.user.id
       certifications: user.certifications,
       profilePicture: user.profilePicture,
     },
-    { new: true, runValidators: false }
+    { returnDocument: "after", runValidators: false }
   );
 
   res.json({

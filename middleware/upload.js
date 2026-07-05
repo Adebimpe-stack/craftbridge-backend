@@ -57,7 +57,7 @@ const buildUpload = () => {
       key(req, file, cb) {
         let folder = "uploads";
 
-        if (file.fieldname === "verificationDocument") {
+        if (file.fieldname === "verificationDocuments") {
           folder = "verification-documents";
         }
 

@@ -53,14 +53,20 @@ const companySchema = new mongoose.Schema(
     verificationStatus: {
       type: String,
       enum: ["none", "pending", "verified", "rejected", "revoked"],
-      default: "pending",
+      default: "none",
     },
 
     verificationDocuments: [
       {
-        type: String,
+        url: { type: String },
+        uploadedAt: { type: Date, default: Date.now },
       },
     ],
+
+    documentsApproved: {
+      type: Boolean,
+      default: false,
+    },
 
     rejectionReason: {
       type: String,
@@ -96,6 +102,12 @@ const companySchema = new mongoose.Schema(
 
     cacNumber: {
       type: String,
+    },
+
+    companyEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
     },
 
     // Company status

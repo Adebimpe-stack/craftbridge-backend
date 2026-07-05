@@ -24,7 +24,9 @@ router.get("/users", auth, requireRole("admin"), async (req, res) => {
           .select("verificationStatus verificationDocuments rejectionReason name");
         if (company) {
           obj.companyVerificationStatus = company.verificationStatus;
-          obj.companyVerificationDocuments = company.verificationDocuments || [];
+          obj.companyVerificationDocuments = (company.verificationDocuments || u.verificationDocuments || []).map((doc) =>
+            typeof doc === "string" ? { url: doc, uploadedAt: null } : doc
+          );
           obj.companyRejectionReason = company.rejectionReason || "";
           obj.companyName = obj.companyName || company.name;
         }
@@ -145,7 +147,7 @@ const suspendJob = async (req, res) => {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
       { status: "suspended" },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job suspended", job });
@@ -164,7 +166,7 @@ router.put("/jobs/:id/restore", auth, requireRole("admin"), async (req, res) => 
     const job = await Job.findByIdAndUpdate(
       req.params.id,
       { status: "active" },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job restored", job });
@@ -181,7 +183,7 @@ router.put("/jobs/:id/close", auth, requireRole("admin"), async (req, res) => {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
       { status: "closed" },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job closed", job });
@@ -198,7 +200,7 @@ router.put("/jobs/:id/reopen", auth, requireRole("admin"), async (req, res) => {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
       { status: "active" },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job reopened", job });
@@ -219,7 +221,7 @@ router.delete("/jobs/:id", auth, requireRole("admin"), async (req, res) => {
         deletedAt: new Date(),
         deletedBy: req.user._id,
       },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json({ message: "Job deleted (soft)", job });
@@ -432,12 +434,15 @@ router.get("/employers", auth, requireRole("admin"), async (req, res) => {
         const obj = emp.toObject();
         if (emp.companyId) {
           const company = await Company.findById(emp.companyId).select(
-            "name verificationStatus verificationDocuments rejectionReason subscriptionActive subscriptionPlan"
+            "name verificationStatus documentsApproved verificationDocuments rejectionReason subscriptionActive subscriptionPlan"
           );
           if (company) {
             obj.companyName = obj.companyName || company.name;
             obj.verificationStatus = company.verificationStatus;
-            obj.verificationDocuments = company.verificationDocuments || [];
+            obj.documentsApproved = company.documentsApproved;
+            obj.verificationDocuments = (company.verificationDocuments || emp.verificationDocuments || []).map((doc) =>
+              typeof doc === "string" ? { url: doc, uploadedAt: null } : doc
+            );
             obj.rejectionReason = company.rejectionReason || "";
             obj.subscriptionActive = company.subscriptionActive;
             obj.subscriptionPlan = company.subscriptionPlan;
@@ -462,7 +467,7 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Employer not found" });
 
-    const allowed = ["verified", "rejected", "revoked", "suspended", "unsuspend"];
+    const allowed = ["verified", "rejected", "revoked", "suspended", "unsuspend", "none"];
     if (!allowed.includes(status)) {
       return res.status(400).json({ message: `Invalid status: ${status}` });
     }
@@ -476,18 +481,21 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
     let companyUpdate = null;
 
     if (status === "verified") {
-      userUpdate = { isCompanyVerified: true, verificationStatus: "verified", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
-      companyUpdate = { verificationStatus: "verified", rejectionReason: "" };
+      userUpdate = { isCompanyVerified: true, verificationStatus: "verified", documentsApproved: true, accountStatus: "active", rejectionReason: "", suspensionReason: "" };
+      companyUpdate = { verificationStatus: "verified", documentsApproved: true, rejectionReason: "" };
     } else if (status === "rejected") {
-      userUpdate = { isCompanyVerified: false, verificationStatus: "rejected", accountStatus: "active", rejectionReason: reason || "" };
-      companyUpdate = { verificationStatus: "rejected", rejectionReason: reason || "" };
+      userUpdate = { isCompanyVerified: false, verificationStatus: "rejected", documentsApproved: false, accountStatus: "active", rejectionReason: reason || "" };
+      companyUpdate = { verificationStatus: "rejected", documentsApproved: false, rejectionReason: reason || "" };
     } else if (status === "revoked") {
-      userUpdate = { isCompanyVerified: false, verificationStatus: "revoked", accountStatus: "active", rejectionReason: "", suspensionReason: "" };
-      companyUpdate = { verificationStatus: "revoked", rejectionReason: "" };
+      userUpdate = { isCompanyVerified: false, verificationStatus: "revoked", documentsApproved: false, accountStatus: "active", rejectionReason: "", suspensionReason: "" };
+      companyUpdate = { verificationStatus: "revoked", documentsApproved: false, rejectionReason: "" };
     } else if (status === "suspended") {
       userUpdate = { accountStatus: "suspended", suspensionReason: reason || "" };
     } else if (status === "unsuspend") {
       userUpdate = { accountStatus: "active", suspensionReason: "" };
+    } else if (status === "none") {
+      userUpdate = { isCompanyVerified: false, verificationStatus: "none", documentsApproved: false, accountStatus: "active", rejectionReason: "" };
+      companyUpdate = { verificationStatus: "none", documentsApproved: false, rejectionReason: "" };
     }
 
     await User.findByIdAndUpdate(req.params.id, userUpdate, { runValidators: false });
@@ -511,7 +519,7 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
 router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
   try {
     const { reason } = req.body;
-    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "suspended", suspensionReason: reason || "" }, { new: true, runValidators: false });
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "suspended", suspensionReason: reason || "" }, { returnDocument: "after", runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User suspended" });
   } catch (err) {
@@ -524,7 +532,7 @@ router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) =>
 // =======================
 router.put("/users/:id/unsuspend", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { new: true, runValidators: false });
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { returnDocument: "after", runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User unsuspended" });
   } catch (err) {
@@ -537,7 +545,7 @@ router.put("/users/:id/unsuspend", auth, requireRole("admin"), async (req, res) 
 // =======================
 router.put("/users/:id/deactivate", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "deactivated" }, { new: true, runValidators: false });
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "deactivated" }, { returnDocument: "after", runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User deactivated" });
   } catch (err) {
@@ -550,8 +558,15 @@ router.put("/users/:id/deactivate", auth, requireRole("admin"), async (req, res)
 // =======================
 router.put("/users/:id/reactivate", auth, requireRole("admin"), async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { new: true, runValidators: false });
+    const user = await User.findByIdAndUpdate(req.params.id, { accountStatus: "active", suspensionReason: "" }, { returnDocument: "after", runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.companyId) {
+      await Company.findByIdAndUpdate(
+        user.companyId,
+        { isActive: true, deactivatedAt: null, deactivatedBy: null },
+        { runValidators: false }
+      );
+    }
     res.json({ message: "User reactivated" });
   } catch (err) {
     res.status(500).json({ message: err.message });

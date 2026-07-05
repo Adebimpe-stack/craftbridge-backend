@@ -10,6 +10,9 @@ const User =
 const Company =
   require("../models/Company");
 
+const Job =
+  require("../models/Job");
+
 const protect =
   require("../middleware/auth");
 
@@ -100,9 +103,15 @@ router.get(
             website: company.website || "",
             logo: company.logo || "",
             cacNumber: company.cacNumber || "",
+            companyEmail: company.companyEmail || user.email || "",
             businessType: company.businessType || "",
             verificationStatus: company.verificationStatus || "none",
             isCompanyVerified: company.verificationStatus === "verified",
+            documentsApproved: company.documentsApproved || false,
+            rejectionReason: company.rejectionReason || "",
+            verificationDocuments: (company.verificationDocuments || user.verificationDocuments || []).map((doc) =>
+              typeof doc === "string" ? { url: doc, uploadedAt: null } : doc
+            ),
           };
         }
       }
@@ -174,8 +183,9 @@ router.put(
         req.body.companyName ||
         user.companyName;
 
-      user.email =
-        req.body.email ||
+      user.companyEmail =
+        req.body.companyEmail ||
+        user.companyEmail ||
         user.email;
 
       user.phone =
@@ -199,16 +209,18 @@ router.put(
       // =========================
 
       if (req.files?.verificationDocuments) {
-        const newDocs =
-          req.files.verificationDocuments.map(
-            (file) => file.location
-          );
+        const existingDocs = (user.verificationDocuments || []).map((doc) =>
+          typeof doc === "string" ? { url: doc, uploadedAt: new Date() } : doc
+        );
+        const newDocs = req.files.verificationDocuments.map((file) => ({
+          url: file.location,
+          uploadedAt: new Date(),
+        }));
 
-        user.verificationDocuments = [
-          ...(user.verificationDocuments || []),
-          ...newDocs,
-        ];
+        user.verificationDocuments = [...existingDocs, ...newDocs];
         user.isCompanyVerified = false;
+        user.verificationStatus = "none";
+        user.documentsApproved = false;
       }
 
       if (req.files?.profilePicture?.[0]) {
@@ -227,7 +239,10 @@ router.put(
         location: req.body.location || user.location || "",
         description: req.body.description || "",
         cacNumber: req.body.cacNumber || user.cacNumber || "",
+        companyEmail: req.body.companyEmail || user.companyEmail || user.email || "",
         businessType: req.body.companyType || user.companyType || "",
+        verificationStatus: user.verificationStatus,
+        documentsApproved: user.documentsApproved,
       };
 
       if (user.profilePicture) {
@@ -243,7 +258,7 @@ router.put(
         company = await Company.findByIdAndUpdate(
           user.companyId,
           companyUpdateFields,
-          { new: true, runValidators: false }
+          { returnDocument: "after", runValidators: false }
         );
       } else if (user.role === "employer") {
         company = await Company.create({
@@ -261,16 +276,17 @@ router.put(
       const updatedUser = await User.findByIdAndUpdate(
         req.user.id,
         {
-          email: user.email,
           phone: user.phone,
           website: user.website,
           location: user.location,
           cacNumber: user.cacNumber,
+          companyEmail: user.companyEmail,
           verificationDocuments: user.verificationDocuments,
           isCompanyVerified: user.isCompanyVerified,
+          documentsApproved: user.documentsApproved,
           profilePicture: user.profilePicture,
         },
-        { new: true, runValidators: false }
+        { returnDocument: "after", runValidators: false }
       );
 
       res.json({
@@ -331,11 +347,30 @@ router.delete(
 
       }
 
+      const docUrl = req.body.docUrl;
+      let updatedDocs = [];
+
+      if (docUrl) {
+        updatedDocs = (user.verificationDocuments || [])
+          .filter((doc) => (typeof doc === "string" ? doc : doc.url) !== docUrl)
+          .map((doc) =>
+            typeof doc === "string" ? { url: doc, uploadedAt: new Date() } : doc
+          );
+      }
+
       await User.findByIdAndUpdate(
         req.user.id,
-        { verificationDocuments: [], isCompanyVerified: false },
+        { verificationDocuments: updatedDocs, isCompanyVerified: false, verificationStatus: "none", documentsApproved: false },
         { runValidators: false }
       );
+
+      if (user.companyId) {
+        await Company.findByIdAndUpdate(
+          user.companyId,
+          { verificationDocuments: updatedDocs, verificationStatus: "none", documentsApproved: false },
+          { runValidators: false }
+        );
+      }
 
       res.json({
 
@@ -671,9 +706,17 @@ router.put(
 
       await User.findByIdAndUpdate(
         req.user.id,
-        { verificationStatus: "pending", isCompanyVerified: false },
+        { verificationStatus: "pending", isCompanyVerified: false, documentsApproved: false },
         { runValidators: false }
       );
+
+      if (user.companyId) {
+        await Company.findByIdAndUpdate(
+          user.companyId,
+          { verificationStatus: "pending", documentsApproved: false },
+          { runValidators: false }
+        );
+      }
 
       res.json({
         message:
@@ -700,6 +743,75 @@ router.put("/deactivate-account", protect, async (req, res) => {
     const user = await User.findByIdAndUpdate(req.user.id, { accountStatus: "deactivated" }, { runValidators: false });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ message: "Account deactivated" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ==============================
+// DEACTIVATE COMPANY
+// ==============================
+router.put("/company-profile/deactivate", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const companyId = user.companyId;
+
+    await User.findByIdAndUpdate(req.user.id, { accountStatus: "deactivated" }, { runValidators: false });
+
+    if (companyId) {
+      await Company.findByIdAndUpdate(
+        companyId,
+        { isActive: false, deactivatedAt: new Date(), deactivatedBy: user._id },
+        { runValidators: false }
+      );
+
+      // Close all active job postings for this company
+      await Job.updateMany(
+        { $or: [{ company: companyId }, { companyId: companyId }], status: "active" },
+        { status: "closed" }
+      );
+
+      // Deactivate all team members of this company so they cannot log in
+      await User.updateMany(
+        { companyId: companyId, _id: { $ne: user._id } },
+        { accountStatus: "deactivated" }
+      );
+    }
+
+    res.json({ message: "Company deactivated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ==============================
+// REQUEST COMPANY DELETION
+// ==============================
+router.post("/company-profile/request-deletion", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user.companyId) {
+      return res.status(400).json({ message: "No company associated with this account" });
+    }
+
+    await Company.findByIdAndUpdate(
+      user.companyId,
+      {
+        isActive: false,
+        deletionRequest: {
+          status: "pending",
+          requestedBy: user._id,
+          requestedAt: new Date(),
+        },
+      },
+      { runValidators: false }
+    );
+
+    res.json({ message: "Company deletion request submitted for admin review" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

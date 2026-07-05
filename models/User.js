@@ -241,7 +241,7 @@ resumeData: {
           "rejected",
           "revoked",
         ],
-        default: "pending",
+        default: "none",
       },
 
       accountStatus: {
@@ -258,6 +258,24 @@ resumeData: {
         type: String,
         trim: true,
         default: "",
+      },
+
+      verificationDocuments: [
+        {
+          url: { type: String },
+          uploadedAt: { type: Date, default: Date.now },
+        },
+      ],
+
+      documentsApproved: {
+        type: Boolean,
+        default: false,
+      },
+
+      companyEmail: {
+        type: String,
+        trim: true,
+        lowercase: true,
       },
 
       companyId: {

@@ -9,7 +9,7 @@ router.put("/:id/approve", auth, requireRole("admin"), async (req, res) => {
     const partnership = await Partnership.findByIdAndUpdate(
       req.params.id,
       { status: "approved" },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!partnership) {
@@ -27,7 +27,7 @@ router.put("/:id/reject", auth, requireRole("admin"), async (req, res) => {
     const partnership = await Partnership.findByIdAndUpdate(
       req.params.id,
       { status: "rejected" },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!partnership) {

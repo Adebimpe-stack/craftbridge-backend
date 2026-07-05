@@ -72,6 +72,19 @@ if (
   });
 
 }
+
+// ACCOUNT DEACTIVATED
+if (
+  user.accountStatus ===
+  "deactivated"
+) {
+
+  return res.status(403).json({
+    message:
+      "Your account has been deactivated. Contact admin.",
+  });
+
+}
       // ATTACH USER
       req.user = user;
 
