@@ -77,7 +77,10 @@ message: err.message,
 router.post(
 "/profile",
 auth,
-upload.single("profilePicture"),
+upload.fields([
+  { name: "profilePicture", maxCount: 1 },
+  { name: "portfolioImages", maxCount: 10 },
+]),
 async (req, res) => {
 try {
 const user = await User.findById(
@@ -123,10 +126,22 @@ req.user.id
           .filter(Boolean)
       : user.certifications;
 
-  if (req.file) {
+  if (req.files?.profilePicture?.[0]) {
     user.profilePicture =
-      req.file.location;
+      req.files.profilePicture[0].location;
   }
+
+  const newPortfolioImages =
+    (req.files?.portfolioImages || []).map((file) => ({
+      url: file.location,
+      caption: "",
+      type: "image",
+    }));
+
+  const updatedPortfolio = [
+    ...(user.portfolio || []),
+    ...newPortfolioImages,
+  ];
 
   const updatedUser = await User.findByIdAndUpdate(
     req.user.id,
@@ -139,6 +154,7 @@ req.user.id
       skills: user.skills,
       certifications: user.certifications,
       profilePicture: user.profilePicture,
+      portfolio: updatedPortfolio,
     },
     { returnDocument: "after", runValidators: false }
   );

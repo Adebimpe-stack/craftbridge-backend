@@ -48,6 +48,9 @@ const jobRoutes =
 const candidateRoutes =
   require("./routes/candidate");
 
+const professionalsRoutes =
+  require("./routes/professionals");
+
 const employerRoutes =
   require("./routes/employer");
 
@@ -187,6 +190,11 @@ app.use(
 app.use(
   "/api/candidate",
   candidateRoutes
+);
+
+app.use(
+  "/api/professionals",
+  professionalsRoutes
 );
 
 app.use(

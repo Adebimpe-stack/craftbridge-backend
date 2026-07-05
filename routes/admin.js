@@ -955,6 +955,8 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
         rejectionReason: user.rejectionReason || "",
         isCompanyVerified: user.isCompanyVerified,
         documentsApproved: user.documentsApproved || false,
+        portfolio: user.portfolio || [],
+        resumeUrl: user.resumeUrl || "",
       },
       company: company
         ? {
