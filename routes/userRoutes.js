@@ -203,6 +203,63 @@ router.get("/verification-status", protect, async (req, res) => {
   }
 });
 
+// =============================
+// USER RESUBMITS AFTER INFO REQUEST
+// =============================
+router.post("/verification-resubmit", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isEmployer = user.role === "employer";
+    let target = null;
+    let status = "none";
+
+    if (isEmployer && user.companyId) {
+      target = await Company.findById(user.companyId);
+      status = target?.verificationStatus || user.verificationStatus || "none";
+    } else {
+      status = user.workerVerificationStatus || "none";
+    }
+
+    if (status !== "info_requested") {
+      return res.status(400).json({
+        message: "You can only resubmit after an admin has requested more information.",
+      });
+    }
+
+    const newStatus = "pending";
+
+    if (target) {
+      target.verificationStatus = newStatus;
+      await target.save();
+    } else {
+      user.workerVerificationStatus = newStatus;
+      await user.save();
+    }
+
+    await VerificationLog.create({
+      user: user._id,
+      type: isEmployer ? "business" : "worker",
+      action: "resubmit",
+      fromStatus: status,
+      toStatus: newStatus,
+      requestedInfo: "",
+      note: "User provided the requested information and resubmitted.",
+      admin: req.user.id,
+    });
+
+    res.json({
+      message: "Resubmitted successfully. Your information is now pending review.",
+      status: newStatus,
+      statusLabel: newStatus.replace("_", " "),
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // ==============================
 // UPDATE COMPANY PROFILE
 // ==============================

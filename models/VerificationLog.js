@@ -24,6 +24,7 @@ const verificationLogSchema = new mongoose.Schema(
         "document_upload",
         "document_delete",
         "submit",
+        "resubmit",
       ],
       required: true,
     },
