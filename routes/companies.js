@@ -49,15 +49,24 @@ const optionalAuth = async (req, res, next) => {
 
 // =========================
 // LIST ALL COMPANIES (Public)
-// Returns every Company record + every employer account that is not
-// already represented by a Company record. Response is normalized
-// so the frontend always receives the same field names.
+// Returns only verified, active, non-deleted Company records plus
+// verified, active employer accounts not already represented by a
+// Company record. Response is normalized so the frontend always
+// receives the same field names.
 // =========================
 router.get("/", async (req, res) => {
   try {
     const [companies, allEmployers] = await Promise.all([
-      Company.find({}).sort({ createdAt: -1 }).lean(),
-      User.find({ role: "employer" }).sort({ createdAt: -1 }).lean(),
+      Company.find({
+        verificationStatus: "verified",
+        isDeleted: false,
+        isActive: true,
+      }).sort({ createdAt: -1 }).lean(),
+      User.find({
+        role: "employer",
+        verificationStatus: "verified",
+        accountStatus: "active",
+      }).sort({ createdAt: -1 }).lean(),
     ]);
 
     // Build set of company ids and owner ids already covered by Company records
