@@ -175,6 +175,7 @@ router.get("/verification-status", protect, async (req, res) => {
     const latestRequest = await VerificationLog.findOne({
       user: user._id,
       action: "request_info",
+      type: isEmployer ? "business" : "worker",
     })
       .sort({ createdAt: -1 })
       .lean();
