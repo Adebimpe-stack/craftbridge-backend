@@ -1031,9 +1031,6 @@ router.post("/verification/:id/request-info", auth, requireRole("admin"), async 
 
     if (isEmployer) {
       await User.findByIdAndUpdate(user._id, { verificationStatus: "info_requested" }, { runValidators: false });
-      if (user.companyId) {
-        await Company.findByIdAndUpdate(user.companyId, { verificationStatus: "info_requested" }, { runValidators: false });
-      }
     } else {
       await User.findByIdAndUpdate(user._id, { workerVerificationStatus: "info_requested" }, { runValidators: false });
     }

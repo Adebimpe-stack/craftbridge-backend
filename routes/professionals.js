@@ -8,14 +8,13 @@ const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
 
 // =========================
-// GET ALL VERIFIED PROFESSIONALS
+// GET ALL PROFESSIONALS
 // GET /api/professionals
 // =========================
 router.get("/", async (req, res) => {
   try {
     const professionals = await User.find({
       role: "jobseeker",
-      workerVerificationStatus: "verified",
       accountStatus: { $nin: ["suspended", "deactivated"] },
     })
       .select(PUBLIC_FIELDS)
@@ -45,7 +44,7 @@ router.get("/:id", async (req, res) => {
 
     if (
       professional.role !== "jobseeker" ||
-      professional.workerVerificationStatus !== "verified"
+      ["suspended", "deactivated"].includes(professional.accountStatus)
     ) {
       return res.status(404).json({ message: "Professional not found" });
     }
