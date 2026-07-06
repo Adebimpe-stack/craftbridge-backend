@@ -156,6 +156,18 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
     let company = await Company.findById(companyId).lean();
     let effectiveCompanyId = companyId;
 
+    const isCompanyMember =
+      req.user &&
+      req.user.companyId &&
+      req.user.companyId.toString() === companyId;
+
+    // Hide inactive companies from public users
+    if (company && company.isActive === false && !isCompanyMember) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
     // Fallback: employer without a Company record
     if (!company) {
       const employer = await User.findOne({
@@ -227,6 +239,12 @@ router.get("/:id", async (req, res) => {
       .populate("teamMembers", "name email");
 
     if (!company) {
+      return res.status(404).json({
+        message: "Company not found"
+      });
+    }
+
+    if (company.isActive === false) {
       return res.status(404).json({
         message: "Company not found"
       });

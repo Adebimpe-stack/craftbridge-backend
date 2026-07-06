@@ -232,10 +232,12 @@ router.get(
         status: "active",
         isDeleted: false,
       })
-        .populate("companyId", "name verificationStatus subscriptionActive")
+        .populate("companyId", "name verificationStatus subscriptionActive isActive")
         .sort({ createdAt: -1 });
 
-      const formattedJobs = jobs.map((job) => {
+      const formattedJobs = jobs
+        .filter((job) => job.companyId?.isActive !== false)
+        .map((job) => {
         const company = job.companyId;
         return {
           ...job.toObject(),
@@ -275,9 +277,9 @@ router.get(
         _id: req.params.id,
         status: "active",
         isDeleted: false,
-      }).populate("companyId", "name verificationStatus subscriptionActive");
+      }).populate("companyId", "name verificationStatus subscriptionActive isActive");
 
-      if (!job) {
+      if (!job || job.companyId?.isActive === false) {
         return res.status(404).json({
           message: "Job not found",
         });
