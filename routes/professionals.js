@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
 
+const LIST_FIELDS = "_id name profilePicture primaryTrade location workerVerificationStatus";
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
 
@@ -16,7 +17,7 @@ router.get("/", async (req, res) => {
     const professionals = await User.find({
       role: "jobseeker",
     })
-      .select(PUBLIC_FIELDS)
+      .select(LIST_FIELDS)
       .sort({ createdAt: -1 });
 
     res.json({ professionals });
