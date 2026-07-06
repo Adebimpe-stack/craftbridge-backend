@@ -115,6 +115,19 @@ req.user.id
     req.body.primaryTrade ||
     user.primaryTrade;
 
+  user.city =
+    req.body.city || user.city;
+
+  user.state =
+    req.body.state || user.state;
+
+  user.country =
+    req.body.country || user.country;
+
+  user.location =
+    req.body.location ||
+    user.location;
+
   user.skills = req.body.skills
     ? req.body.skills
         .split(",")
@@ -156,6 +169,9 @@ req.user.id
       bio: user.bio,
       availability: user.availability,
       primaryTrade: user.primaryTrade,
+      city: user.city,
+      state: user.state,
+      country: user.country,
       skills: user.skills,
       certifications: user.certifications,
       profilePicture: user.profilePicture,

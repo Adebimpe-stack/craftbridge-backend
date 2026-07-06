@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
 
-const LIST_FIELDS = "_id name profilePicture primaryTrade location workerVerificationStatus";
+const LIST_FIELDS = "_id name profilePicture primaryTrade location city state country workerVerificationStatus";
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
 
