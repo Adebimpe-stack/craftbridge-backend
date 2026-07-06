@@ -455,14 +455,8 @@ router.post(
         return res.status(400).json({ message: "Invalid credentials" });
       }
 
-      // CHECK VERIFIED
-      if (!user.isVerified) {
-        return res.status(400).json({
-          message: "Please verify your email before logging in.",
-        });
-      }
-
-      // CHECK ACCOUNT STATUS
+      // CHECK ACCOUNT STATUS BEFORE EMAIL VERIFICATION
+      // so suspended/deactivated users see the correct message
       if (user.accountStatus === "suspended") {
         return res.status(403).json({
           message: "Your account has been suspended. Please contact support.",
@@ -472,6 +466,13 @@ router.post(
       if (user.accountStatus === "deactivated") {
         return res.status(403).json({
           message: "Your account has been deactivated. Contact admin.",
+        });
+      }
+
+      // CHECK VERIFIED
+      if (!user.isVerified) {
+        return res.status(400).json({
+          message: "Please verify your email before logging in.",
         });
       }
 
