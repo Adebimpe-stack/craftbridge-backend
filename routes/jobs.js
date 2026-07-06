@@ -41,7 +41,6 @@ router.post(
     body("requirements", "Requirements are required").not().isEmpty(),
   ],
   async (req, res) => {
-console.log("REQ USER:", req.user);
     try {
 
       const user =
