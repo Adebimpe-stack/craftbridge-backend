@@ -681,9 +681,12 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     if (status === "verified") {
       updateFields.workerRejectionReason = "";
       updateFields.isVerified = true;
-    } else if (["rejected", "revoked", "info_requested", "none"].includes(status)) {
-      updateFields.workerRejectionReason = status === "rejected" ? reason || "" : "";
-      updateFields.isVerified = false;
+    } else if (status === "rejected") {
+      updateFields.workerRejectionReason = reason || "";
+      // keep isVerified unchanged so rejected workers can still log in
+    } else if (["revoked", "info_requested", "none"].includes(status)) {
+      updateFields.workerRejectionReason = "";
+      // keep isVerified unchanged
     }
 
     await User.findByIdAndUpdate(req.params.id, updateFields, { runValidators: false });
