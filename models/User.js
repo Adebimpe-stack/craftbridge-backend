@@ -321,9 +321,10 @@ resumeData: {
       },
 
       companyId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "Company",
-},
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Company",
+        index: true,
+      },
 
 companyRole: {
   type: String,

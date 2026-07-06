@@ -410,101 +410,70 @@ router.post(
 
   async (req, res) => {
 
+    const requestStart = Date.now();
+    const { email, password } = req.body;
+    const normalizedEmail = (email || "").toLowerCase().trim();
+
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({
+        message: "Email and password are required.",
+      });
+    }
+
     try {
-
-      const {
-        email,
-        password,
-      } = req.body;
-
-      if (!email || !password) {
-        return res.status(400).json({
-          message: "Email and password are required.",
-        });
-      }
-
       // FIND USER
-      const user =
-        await User.findOne({
-          email: email.toLowerCase().trim(),
-        }).select("_id name email password role companyId companyRole isVerified isCompanyVerified accountStatus workerVerificationStatus verificationStatus");
+      const findUserStart = Date.now();
+      const user = await User.findOne({
+        email: normalizedEmail,
+      }).select("_id name email password role companyId companyRole isVerified isCompanyVerified accountStatus workerVerificationStatus verificationStatus");
+      const findUserDuration = Date.now() - findUserStart;
+      console.log(`[LOGIN AUDIT] User.findOne for ${normalizedEmail} took ${findUserDuration}ms`);
 
       if (!user) {
-
-        return res
-          .status(400)
-          .json({
-
-            message:
-              "Invalid credentials",
-
-          });
-
+        return res.status(400).json({ message: "Invalid credentials" });
       }
 
       // CHECK PASSWORD
-      const isMatch =
-        await bcrypt.compare(
-          password,
-          user.password
-        );
+      const bcryptStart = Date.now();
+      const isMatch = await bcrypt.compare(password, user.password);
+      const bcryptDuration = Date.now() - bcryptStart;
+      console.log(`[LOGIN AUDIT] bcrypt.compare for ${normalizedEmail} took ${bcryptDuration}ms`);
 
       if (!isMatch) {
-
-        return res
-          .status(400)
-          .json({
-
-            message:
-              "Invalid credentials",
-
-          });
-
+        return res.status(400).json({ message: "Invalid credentials" });
       }
 
       // CHECK VERIFIED
       if (!user.isVerified) {
-
-        return res
-          .status(400)
-          .json({
-
-            message:
-              "Please verify your email before logging in.",
-
-          });
-
+        return res.status(400).json({
+          message: "Please verify your email before logging in.",
+        });
       }
 
-// CHECK ACCOUNT STATUS
-if (user.accountStatus === "suspended") {
-  return res.status(403).json({
-    message: "Your account has been suspended. Please contact support.",
-  });
-}
+      // CHECK ACCOUNT STATUS
+      if (user.accountStatus === "suspended") {
+        return res.status(403).json({
+          message: "Your account has been suspended. Please contact support.",
+        });
+      }
 
-if (user.accountStatus === "deactivated") {
-  return res.status(403).json({
-    message: "Your account has been deactivated. Contact admin.",
-  });
-}
+      if (user.accountStatus === "deactivated") {
+        return res.status(403).json({
+          message: "Your account has been deactivated. Contact admin.",
+        });
+      }
+
       // CREATE TOKEN
-      const token =
-        jwt.sign(
+      const jwtStart = Date.now();
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      const jwtDuration = Date.now() - jwtStart;
+      console.log(`[LOGIN AUDIT] jwt.sign for ${normalizedEmail} took ${jwtDuration}ms`);
 
-          {
-            id: user._id,
-          },
-
-          process.env.JWT_SECRET,
-
-          {
-            expiresIn: "7d",
-          }
-
-        );
-
-      // Prepare user response
+      // Prepare minimal user response
       const userResponse = {
         _id: user._id,
         name: user.name,
@@ -514,73 +483,40 @@ if (user.accountStatus === "deactivated") {
         accountStatus: user.accountStatus,
       };
 
-      // Add worker verification info for jobseekers
       if (user.role === "jobseeker") {
         userResponse.workerVerificationStatus = user.workerVerificationStatus;
       }
 
-      // Add company info for employers
       if (user.role === "employer" && user.companyId) {
         userResponse.companyId = user.companyId;
         userResponse.companyRole = user.companyRole;
         userResponse.companyVerificationStatus = user.verificationStatus;
         userResponse.isCompanyVerified = user.isCompanyVerified;
-
-        const company = await Company.findById(user.companyId)
-          .select("subscriptionActive subscriptionPlan subscriptionExpiry")
-          .lean();
-        if (company) {
-          const now = new Date();
-          const isActive =
-            company.subscriptionActive &&
-            company.subscriptionExpiry &&
-            new Date(company.subscriptionExpiry) > now;
-
-          userResponse.hasActiveSubscription = isActive;
-          userResponse.subscriptionActive = isActive;
-          userResponse.subscriptionPlan = company.subscriptionPlan || "free";
-          userResponse.subscriptionExpiry = company.subscriptionExpiry || null;
-        } else {
-          // Fallback to the user record if the company is missing
-          const now = new Date();
-          const isActive =
-            user.subscriptionActive &&
-            user.subscriptionExpiry &&
-            new Date(user.subscriptionExpiry) > now;
-
-          userResponse.hasActiveSubscription = isActive;
-          userResponse.subscriptionActive = isActive;
-          userResponse.subscriptionPlan = user.subscriptionPlan || "free";
-          userResponse.subscriptionExpiry = user.subscriptionExpiry || null;
-        }
+        // Subscription data is loaded by the company-profile endpoint; defaults prevent UI breakage
+        userResponse.hasActiveSubscription = false;
+        userResponse.subscriptionActive = false;
+        userResponse.subscriptionPlan = "free";
+        userResponse.subscriptionExpiry = null;
       }
 
-      // Update last login timestamp without fetching the document back
-      await User.updateOne({ _id: user._id }, { lastLogin: new Date() });
+      // Return authentication response immediately
+      res.status(200).json({ token, user: userResponse });
+      const totalDuration = Date.now() - requestStart;
+      console.log(`[LOGIN AUDIT] Total synchronous login time for ${normalizedEmail}: ${totalDuration}ms`);
 
-      return res
-        .status(200)
-        .json({
-          token,
-          user: userResponse,
+      // Non-critical work: update last login asynchronously after response is sent
+      const lastLoginStart = Date.now();
+      User.updateOne({ _id: user._id }, { lastLogin: new Date() })
+        .then(() => {
+          console.log(`[LOGIN AUDIT] lastLogin update for ${normalizedEmail} took ${Date.now() - lastLoginStart}ms`);
+        })
+        .catch((err) => {
+          console.error(`[LOGIN AUDIT] lastLogin update failed for ${normalizedEmail}:`, err.message);
         });
 
     } catch (error) {
-
-      console.log(
-        "LOGIN ERROR:",
-        error
-      );
-
-      return res
-        .status(500)
-        .json({
-
-          message:
-            "Server error",
-
-        });
-
+      console.log("LOGIN ERROR:", error);
+      return res.status(500).json({ message: "Server error" });
     }
 
   }

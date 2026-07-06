@@ -219,6 +219,11 @@ const companySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+companySchema.index({ owner: 1 });
+companySchema.index({ subscriptionActive: 1 });
+companySchema.index({ subscriptionExpiry: 1 });
+companySchema.index({ subscriptionActive: 1, subscriptionExpiry: 1 });
+
 companySchema.virtual("age").get(function () {
   return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
 });
