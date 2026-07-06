@@ -85,6 +85,16 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+    // Flag set when a verified company changes important profile information
+    profileUpdatedAfterVerification: {
+      type: Boolean,
+      default: false,
+    },
+
+    profileUpdatedAfterVerificationAt: {
+      type: Date,
+    },
+
     // Company details
     industry: {
       type: String,

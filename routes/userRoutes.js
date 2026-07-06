@@ -110,10 +110,13 @@ router.get(
             logo: company.logo || "",
             cacNumber: company.cacNumber || "",
             businessType: company.businessType || "",
+            companyType: company.businessType || "",
             verificationStatus: company.verificationStatus || "none",
             isCompanyVerified: company.verificationStatus === "verified",
             documentsApproved: company.documentsApproved || false,
             rejectionReason: company.rejectionReason || "",
+            profileUpdatedAfterVerification: company.profileUpdatedAfterVerification || false,
+            profileUpdatedAfterVerificationAt: company.profileUpdatedAfterVerificationAt || null,
             verificationDocuments: (company.verificationDocuments || user.verificationDocuments || []).map((doc) =>
               typeof doc === "string" ? { url: doc, uploadedAt: null } : doc
             ),
@@ -314,32 +317,56 @@ router.put(
         req.body.companyName ||
         user.companyName;
 
-      user.companyEmail =
+      const incomingCompanyEmail =
         req.body.companyEmail ||
         user.companyEmail ||
         user.email;
 
-      user.phone =
+      const incomingPhone =
         req.body.phone ||
         user.phone;
 
-      user.website =
+      const incomingWebsite =
         req.body.website ||
         user.website;
 
-      user.linkedin =
+      const incomingLinkedin =
         req.body.linkedin ||
         user.linkedin ||
         user.socialLinks?.linkedin ||
         "";
 
-      user.location =
+      const incomingLocation =
         req.body.location ||
         user.location;
 
-      user.cacNumber =
+      const incomingCacNumber =
         req.body.cacNumber ||
         user.cacNumber;
+
+      const incomingIndustry =
+        req.body.industry ||
+        "";
+
+      const incomingCompanySize =
+        req.body.companySize ||
+        "";
+
+      const incomingDescription =
+        req.body.description ||
+        "";
+
+      const incomingBusinessType =
+        req.body.companyType ||
+        user.companyType ||
+        "";
+
+      user.companyEmail = incomingCompanyEmail;
+      user.phone = incomingPhone;
+      user.website = incomingWebsite;
+      user.linkedin = incomingLinkedin;
+      user.location = incomingLocation;
+      user.cacNumber = incomingCacNumber;
 
       // =========================
       // HANDLE FILE UPLOAD
@@ -368,18 +395,44 @@ router.put(
       // =========================
       // PERSIST COMPANY DATA TO COMPANY MODEL
       // =========================
-      const companyUpdateFields = {
+      let company = null;
+      if (user.companyId) {
+        company = await Company.findById(user.companyId).lean();
+      }
+
+      const currentVerificationStatus = company?.verificationStatus || user.verificationStatus || "none";
+      const isVerified = currentVerificationStatus === "verified";
+
+      const importantFields = {
         name: incomingCompanyName || user.name,
-        website: req.body.website || user.website || "",
-        linkedin: req.body.linkedin || user.linkedin || user.socialLinks?.linkedin || "",
-        industry: req.body.industry || "",
-        companySize: req.body.companySize || "",
-        location: req.body.location || user.location || "",
-        description: req.body.description || "",
-        cacNumber: req.body.cacNumber || user.cacNumber || "",
-        companyEmail: req.body.companyEmail || user.companyEmail || user.email || "",
-        phone: req.body.phone || user.phone || "",
-        businessType: req.body.companyType || user.companyType || "",
+        companyEmail: incomingCompanyEmail,
+        phone: incomingPhone,
+        website: incomingWebsite,
+        linkedin: incomingLinkedin,
+        location: incomingLocation,
+        cacNumber: incomingCacNumber,
+        industry: incomingIndustry,
+        companySize: incomingCompanySize,
+        description: incomingDescription,
+        businessType: incomingBusinessType,
+      };
+
+      let profileUpdatedAfterVerification = false;
+      if (isVerified && company) {
+        for (const [field, newValue] of Object.entries(importantFields)) {
+          const currentValue = company[field] || "";
+          if (String(currentValue).trim() !== String(newValue || "").trim()) {
+            profileUpdatedAfterVerification = true;
+            break;
+          }
+        }
+      }
+
+      const companyUpdateFields = {
+        ...importantFields,
+        companyEmail: incomingCompanyEmail,
+        phone: incomingPhone,
+        // Keep existing verification status unless documents were uploaded
         verificationStatus: user.verificationStatus,
         documentsApproved: user.documentsApproved,
       };
@@ -392,7 +445,11 @@ router.put(
         companyUpdateFields.verificationDocuments = user.verificationDocuments;
       }
 
-      let company = null;
+      if (profileUpdatedAfterVerification) {
+        companyUpdateFields.profileUpdatedAfterVerification = true;
+        companyUpdateFields.profileUpdatedAfterVerificationAt = new Date();
+      }
+
       if (user.companyId) {
         company = await Company.findByIdAndUpdate(
           user.companyId,
@@ -412,21 +469,29 @@ router.put(
         );
       }
 
+      const userUpdateFields = {
+        phone: user.phone,
+        website: user.website,
+        linkedin: user.linkedin,
+        "socialLinks.linkedin": user.linkedin,
+        location: user.location,
+        cacNumber: user.cacNumber,
+        companyEmail: user.companyEmail,
+        companyType: incomingBusinessType,
+        verificationDocuments: user.verificationDocuments,
+        isCompanyVerified: user.isCompanyVerified,
+        documentsApproved: user.documentsApproved,
+        profilePicture: user.profilePicture,
+      };
+
+      if (profileUpdatedAfterVerification) {
+        userUpdateFields.profileUpdatedAfterVerification = true;
+        userUpdateFields.profileUpdatedAfterVerificationAt = new Date();
+      }
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user.id,
-        {
-          phone: user.phone,
-          website: user.website,
-          linkedin: user.linkedin,
-          "socialLinks.linkedin": user.linkedin,
-          location: user.location,
-          cacNumber: user.cacNumber,
-          companyEmail: user.companyEmail,
-          verificationDocuments: user.verificationDocuments,
-          isCompanyVerified: user.isCompanyVerified,
-          documentsApproved: user.documentsApproved,
-          profilePicture: user.profilePicture,
-        },
+        userUpdateFields,
         { returnDocument: "after", runValidators: false }
       );
 

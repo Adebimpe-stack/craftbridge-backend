@@ -530,6 +530,51 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
 });
 
 // =======================
+// UPDATE BUSINESS TYPE (admin standardization)
+// =======================
+router.put("/employers/:id/business-type", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { businessType } = req.body;
+    if (!businessType || !businessType.trim()) {
+      return res.status(400).json({ message: "Business type is required" });
+    }
+    const normalized = businessType.trim();
+    if (normalized.length < 3 || normalized.length > 100) {
+      return res.status(400).json({ message: "Business type must be between 3 and 100 characters" });
+    }
+    if (!/^[a-zA-Z0-9\s&.'()-]+$/.test(normalized)) {
+      return res.status(400).json({ message: "Business type contains invalid characters" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Employer not found" });
+
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    const companyUpdate = {
+      businessType: normalized,
+      // Admin standardization does not require approval and does not change verification status
+      profileUpdatedAfterVerification: false,
+      profileUpdatedAfterVerificationAt: null,
+    };
+
+    await Company.findByIdAndUpdate(company._id, companyUpdate, { runValidators: false });
+    await User.findByIdAndUpdate(user._id, { companyType: normalized }, { runValidators: false });
+
+    res.json({ message: "Business type updated successfully", businessType: normalized });
+  } catch (err) {
+    console.error("employers/:id/business-type error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // SUSPEND USER
 // =======================
 router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
@@ -976,6 +1021,8 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
             verificationStatus: company.verificationStatus || "none",
             rejectionReason: company.rejectionReason || "",
             documentsApproved: company.documentsApproved || false,
+            profileUpdatedAfterVerification: company.profileUpdatedAfterVerification || false,
+            profileUpdatedAfterVerificationAt: company.profileUpdatedAfterVerificationAt || null,
             isActive: company.isActive,
             createdAt: company.createdAt,
             updatedAt: company.updatedAt,

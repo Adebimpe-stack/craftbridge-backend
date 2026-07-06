@@ -305,6 +305,15 @@ resumeData: {
         default: false,
       },
 
+      profileUpdatedAfterVerification: {
+        type: Boolean,
+        default: false,
+      },
+
+      profileUpdatedAfterVerificationAt: {
+        type: Date,
+      },
+
       companyEmail: {
         type: String,
         trim: true,
