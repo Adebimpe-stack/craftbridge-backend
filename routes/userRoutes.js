@@ -850,6 +850,8 @@ router.get(
       const talent =
         await User.find({
           role: "jobseeker",
+          workerVerificationStatus: "verified",
+          accountStatus: { $nin: ["suspended", "deactivated"] },
         })
         .select(
           "-password"
