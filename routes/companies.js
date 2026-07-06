@@ -206,11 +206,6 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
 
     let query = { companyId: effectiveCompanyId, isDeleted: false };
 
-    const isCompanyMember =
-      req.user &&
-      req.user.companyId &&
-      req.user.companyId.toString() === companyId;
-
     if (!isCompanyMember) {
       query.status = "active";
     }
