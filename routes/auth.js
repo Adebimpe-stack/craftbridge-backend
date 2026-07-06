@@ -427,7 +427,7 @@ router.post(
       const user =
         await User.findOne({
           email: email.toLowerCase().trim(),
-        }).select("_id name email password role companyId companyRole isVerified accountStatus workerVerificationStatus verificationStatus");
+        }).select("_id name email password role companyId companyRole isVerified isCompanyVerified accountStatus workerVerificationStatus verificationStatus");
 
       if (!user) {
 
@@ -526,9 +526,9 @@ if (user.accountStatus === "deactivated") {
         userResponse.companyVerificationStatus = user.verificationStatus;
         userResponse.isCompanyVerified = user.isCompanyVerified;
 
-        const company = await Company.findById(user.companyId).select(
-          "subscriptionActive subscriptionPlan subscriptionExpiry"
-        );
+        const company = await Company.findById(user.companyId)
+          .select("subscriptionActive subscriptionPlan subscriptionExpiry")
+          .lean();
         if (company) {
           const now = new Date();
           const isActive =
@@ -555,43 +555,15 @@ if (user.accountStatus === "deactivated") {
         }
       }
 
-      // Check for pending invitations — with 2s timeout to never block login
-      let pendingInvitations = [];
-      if (!user.companyId) {
-        try {
-          const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 2000)
-          );
-          pendingInvitations = await Promise.race([
-            TeamInvitation.find({
-              email: user.email,
-              status: "pending",
-              expiresAt: { $gt: new Date() }
-            })
-            .populate("company", "name logo")
-            .populate("invitedBy", "name"),
-            timeout
-          ]);
-        } catch (_) {
-          pendingInvitations = [];
-        }
-      }
-
-      // Update last login timestamp
-      await User.findByIdAndUpdate(user._id, { lastLogin: new Date() }, { runValidators: false });
-
-      const response = {
-        token,
-        user: userResponse,
-      };
-
-      if (pendingInvitations.length > 0) {
-        response.pendingInvitations = pendingInvitations;
-      }
+      // Update last login timestamp without fetching the document back
+      await User.updateOne({ _id: user._id }, { lastLogin: new Date() });
 
       return res
         .status(200)
-        .json(response);
+        .json({
+          token,
+          user: userResponse,
+        });
 
     } catch (error) {
 
