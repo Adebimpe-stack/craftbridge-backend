@@ -111,6 +111,10 @@ req.user.id
     req.body.availability ||
     user.availability;
 
+  user.primaryTrade =
+    req.body.primaryTrade ||
+    user.primaryTrade;
+
   user.skills = req.body.skills
     ? req.body.skills
         .split(",")
@@ -151,6 +155,7 @@ req.user.id
       experienceYears: user.experienceYears,
       bio: user.bio,
       availability: user.availability,
+      primaryTrade: user.primaryTrade,
       skills: user.skills,
       certifications: user.certifications,
       profilePicture: user.profilePicture,
