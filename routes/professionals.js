@@ -15,7 +15,6 @@ router.get("/", async (req, res) => {
   try {
     const professionals = await User.find({
       role: "jobseeker",
-      accountStatus: { $nin: ["suspended", "deactivated"] },
     })
       .select(PUBLIC_FIELDS)
       .sort({ createdAt: -1 });
@@ -42,10 +41,7 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Professional not found" });
     }
 
-    if (
-      professional.role !== "jobseeker" ||
-      ["suspended", "deactivated"].includes(professional.accountStatus)
-    ) {
+    if (professional.role !== "jobseeker") {
       return res.status(404).json({ message: "Professional not found" });
     }
 
