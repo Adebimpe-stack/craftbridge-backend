@@ -357,8 +357,11 @@ router.get("/directory", async (req, res) => {
   try {
     const professionals = await User.find({
       role: "jobseeker",
-      workerVerificationStatus: "verified",
       accountStatus: { $nin: ["suspended", "deactivated"] },
+      $or: [
+        { workerVerificationStatus: "verified" },
+        { workerVerificationStatus: { $in: [null, "", "none"] }, isVerified: true },
+      ],
     })
       .select("-password -emailVerificationToken -resetPasswordToken")
       .sort({ createdAt: -1 });
