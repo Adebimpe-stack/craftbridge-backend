@@ -77,16 +77,21 @@ router.get("/:id", async (req, res) => {
         const client = await User.findById(clientId).select("companyId");
         const companyId = client?.companyId;
 
-        const acceptedRequest = await ServiceRequest.findOne({
+        const acceptedRequests = await ServiceRequest.find({
           professional: req.params.id,
           status: { $in: ["accepted", "completed"] },
-          $or: [
-            { client: clientId },
-            ...(companyId ? [{ companyId }] : []),
-          ],
+        }).populate("client", "companyId");
+
+        const hasUnlock = acceptedRequests.some((r) => {
+          if (String(r.client?._id) === String(clientId)) return true;
+          if (!companyId) return false;
+          return (
+            String(r.companyId) === String(companyId) ||
+            String(r.client?.companyId) === String(companyId)
+          );
         });
 
-        if (acceptedRequest) {
+        if (hasUnlock) {
           showContact = true;
         }
       } catch (e) {

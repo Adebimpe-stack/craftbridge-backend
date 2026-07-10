@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require("../middleware/auth");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
+const Company = require("../models/Company");
 
 // =========================
 // HELPER: get owner context from current user
@@ -18,18 +19,24 @@ const getOwner = (user) => {
 // HELPER: check employer has unlocked this professional
 // =========================
 const hasUnlockedRelationship = async (professionalId, owner) => {
-  const query = {
-    professional: professionalId,
-    status: { $in: ["accepted", "completed"] },
-  };
-
-  if (owner.ownerType === "company") {
-    query.companyId = owner.ownerId;
-  } else {
-    query.client = owner.ownerId;
+  if (owner.ownerType === "user") {
+    return await ServiceRequest.findOne({
+      professional: professionalId,
+      status: { $in: ["accepted", "completed"] },
+      client: owner.ownerId,
+    });
   }
 
-  return await ServiceRequest.findOne(query);
+  const requests = await ServiceRequest.find({
+    professional: professionalId,
+    status: { $in: ["accepted", "completed"] },
+  }).populate("client", "companyId");
+
+  return requests.find(
+    (r) =>
+      String(r.companyId) === String(owner.ownerId) ||
+      String(r.client?.companyId) === String(owner.ownerId)
+  );
 };
 
 // =========================
@@ -41,12 +48,24 @@ router.get("/timeline/:professionalId", auth, async (req, res) => {
     const owner = getOwner(req.user);
     const professionalId = req.params.professionalId;
 
-    const serviceQuery = {
+    let serviceQuery = {
       professional: professionalId,
     };
 
     if (owner.ownerType === "company") {
-      serviceQuery.companyId = owner.ownerId;
+      const company = await Company.findById(owner.ownerId).select("teamMembers owner");
+      const memberIds = new Set();
+      if (company) {
+        if (company.owner) memberIds.add(String(company.owner));
+        (company.teamMembers || []).forEach((id) => memberIds.add(String(id)));
+      }
+      serviceQuery = {
+        professional: professionalId,
+        $or: [
+          { companyId: owner.ownerId },
+          { client: { $in: Array.from(memberIds) } },
+        ],
+      };
     } else {
       serviceQuery.client = owner.ownerId;
     }

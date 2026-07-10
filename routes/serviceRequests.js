@@ -166,9 +166,25 @@ router.get("/incoming", auth, async (req, res) => {
 // =========================
 router.get("/my", auth, async (req, res) => {
   try {
-    const query = req.user.companyId
-      ? { $or: [{ client: req.user._id }, { companyId: req.user.companyId }] }
-      : { client: req.user._id };
+    const userId = req.user._id;
+    const companyId = req.user.companyId;
+
+    let query = { client: userId };
+
+    if (companyId) {
+      const company = await Company.findById(companyId).select("teamMembers owner");
+      const memberIds = new Set([String(userId)]);
+      if (company) {
+        if (company.owner) memberIds.add(String(company.owner));
+        (company.teamMembers || []).forEach((id) => memberIds.add(String(id)));
+      }
+      query = {
+        $or: [
+          { client: { $in: Array.from(memberIds) } },
+          { companyId },
+        ],
+      };
+    }
 
     const requests = await ServiceRequest.find(query)
       .populate("professional", "name email profilePicture primaryTrade location")

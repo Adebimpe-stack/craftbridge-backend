@@ -7,6 +7,19 @@ const ServiceRequest = require("../models/ServiceRequest");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 
 // =========================
+// HELPERS
+// =========================
+
+async function getCompanyMemberIds(companyId) {
+  const company = await Company.findById(companyId).select("teamMembers owner");
+  if (!company) return [];
+  const ids = new Set();
+  if (company.owner) ids.add(String(company.owner));
+  (company.teamMembers || []).forEach((id) => ids.add(String(id)));
+  return Array.from(ids);
+}
+
+// =========================
 // PROFILE COMPLETION HELPERS
 // =========================
 
@@ -104,7 +117,12 @@ router.get("/employer", auth, async (req, res) => {
 
     const requestQuery =
       owner.ownerType === "company"
-        ? { companyId: owner.ownerId }
+        ? {
+            $or: [
+              { companyId: owner.ownerId },
+              { client: { $in: await getCompanyMemberIds(owner.ownerId) } },
+            ],
+          }
         : { client: owner.ownerId };
 
     const [totalRequests, accepted, completed, savedCount, completion] =
