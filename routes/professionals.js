@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
 
-const LIST_FIELDS = "_id name profilePicture primaryTrade location city state country workerVerificationStatus";
+const LIST_FIELDS = "_id name profilePicture primaryTrade category location city state country workerVerificationStatus availability experienceYears skills";
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
 
@@ -17,10 +17,7 @@ router.get("/", async (req, res) => {
     const professionals = await User.find({
       role: "jobseeker",
       accountStatus: { $nin: ["suspended", "deactivated"] },
-      $or: [
-        { workerVerificationStatus: "verified" },
-        { workerVerificationStatus: { $in: [null, "", "none"] }, isVerified: true },
-      ],
+      workerVerificationStatus: { $nin: ["rejected"] },
     })
       .select(LIST_FIELDS)
       .sort({ createdAt: -1 });
@@ -52,11 +49,11 @@ router.get("/:id", async (req, res) => {
     }
 
     const isVisible =
-      professional.workerVerificationStatus === "verified" ||
-      (!professional.workerVerificationStatus && professional.isVerified) ||
-      (["none", ""].includes(professional.workerVerificationStatus) && professional.isVerified);
+      professional.role === "jobseeker" &&
+      !["rejected"].includes(professional.workerVerificationStatus) &&
+      !["suspended", "deactivated"].includes(professional.accountStatus);
 
-    if (!isVisible || ["suspended", "deactivated"].includes(professional.accountStatus)) {
+    if (!isVisible) {
       return res.status(404).json({ message: "Professional not found" });
     }
 

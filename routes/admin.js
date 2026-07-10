@@ -708,6 +708,83 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
 });
 
 // =======================
+// UPDATE WORKER PROFILE (admin edit)
+// =======================
+router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+    if (user.role !== "jobseeker") {
+      return res.status(400).json({ message: "This endpoint is only for worker profiles" });
+    }
+
+    const allowedFields = [
+      "name", "headline", "primaryTrade", "category", "skills", "experienceYears",
+      "availability", "bio", "city", "state", "country", "location", "resumeUrl",
+      "website", "linkedin", "github", "certifications", "languages"
+    ];
+
+    const update = {};
+    for (const key of allowedFields) {
+      if (req.body[key] === undefined) continue;
+
+      let value = req.body[key];
+
+      if (["skills", "certifications", "languages"].includes(key)) {
+        if (typeof value === "string") {
+          value = value.split(",").map((s) => s.trim()).filter(Boolean);
+        } else if (!Array.isArray(value)) {
+          value = [];
+        }
+      }
+
+      if (key === "experienceYears") {
+        value = Number(value) || 0;
+      }
+
+      if (key === "name") {
+        value = String(value).trim();
+        if (!value) return res.status(400).json({ message: "Name cannot be empty" });
+      }
+
+      if (["bio", "headline", "primaryTrade", "category", "location", "city", "state", "country"].includes(key)) {
+        value = String(value).trim();
+      }
+
+      if (["resumeUrl", "website", "linkedin", "github"].includes(key)) {
+        value = String(value).trim();
+      }
+
+      update[key] = value;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "No valid fields provided to update" });
+    }
+
+    // Sync legacy location field if city/state/country provided
+    if (update.city || update.state || update.country) {
+      const locationParts = [update.city || user.city, update.state || user.state, update.country || user.country]
+        .filter(Boolean);
+      if (locationParts.length > 0) {
+        update.location = locationParts.join(", ");
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      update,
+      { new: true, runValidators: false }
+    ).select("-password");
+
+    res.json({ message: "Worker profile updated", user: updatedUser });
+  } catch (err) {
+    console.error("admin workers/:id update error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // AUDIT VERIFICATION STATUS ENUMS
 // Reports any documents that violate the current allowed enum values
 // =======================
@@ -902,11 +979,14 @@ function calculateWorkerCompletion(user) {
     { key: "photo", label: "Photo", done: !!(user.profileImage || user.profilePicture) },
     { key: "phone", label: "Phone", done: !!user.phone },
     { key: "email", label: "Email", done: !!user.email },
-    { key: "location", label: "Location", done: !!user.location },
+    { key: "location", label: "Location", done: !!(user.location || user.city || user.state || user.country) },
+    { key: "trade", label: "Trade", done: !!user.primaryTrade },
     { key: "description", label: "Description", done: !!(user.bio || user.professionalSummary) },
     { key: "skills", label: "Skills", done: Array.isArray(user.skills) && user.skills.length > 0 },
-    { key: "documents", label: "Documents", done: (user.workerVerificationDocuments?.length || user.verificationEvidence?.length || 0) > 0 },
-    { key: "linkedin", label: "LinkedIn", done: !!(user.socialLinks && user.socialLinks.linkedin) },
+    { key: "experience", label: "Experience", done: !!(user.experienceYears && user.experienceYears > 0) },
+    { key: "resume", label: "Resume", done: !!(user.resumeUrl || user.resume) },
+    { key: "documents", label: "Verification Documents", done: (user.workerVerificationDocuments?.length || user.verificationEvidence?.length || 0) > 0 },
+    { key: "linkedin", label: "LinkedIn", done: !!(user.socialLinks?.linkedin || user.linkedin) },
   ];
   const completed = checks.filter((c) => c.done).length;
   return {
@@ -997,10 +1077,18 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
         headline: user.headline || "",
         skills: user.skills || [],
         primaryTrade: user.primaryTrade || "",
+        category: user.category || "",
         experienceYears: user.experienceYears || 0,
+        availability: user.availability || "available",
         certifications: user.certifications || [],
+        languages: user.languages || [],
         socialLinks: user.socialLinks || {},
+        linkedin: user.linkedin || "",
+        github: user.github || "",
         website: user.website || "",
+        city: user.city || "",
+        state: user.state || "",
+        country: user.country || "",
         workerVerificationStatus: user.workerVerificationStatus || "none",
         workerRejectionReason: user.workerRejectionReason || "",
         verificationStatus: user.verificationStatus || "none",
@@ -1009,6 +1097,8 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
         documentsApproved: user.documentsApproved || false,
         portfolio: user.portfolio || [],
         resumeUrl: user.resumeUrl || "",
+        resume: user.resume || "",
+        resumeData: user.resumeData || null,
       },
       company: company
         ? {
