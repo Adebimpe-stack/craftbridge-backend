@@ -59,6 +59,12 @@ router.get("/:id", async (req, res) => {
 
     const result = professional.toObject();
 
+    // Preserve whether sensitive data exists before we strip it
+    const hasResume = !!(result.resumeUrl || result.resume || result.resumeData);
+    const hasPhone = !!result.phone;
+    const hasEmail = !!result.email;
+    const hasContact = hasPhone || hasEmail || !!(result.companyEmail);
+
     let showContact = false;
     const authHeader = req.header("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
@@ -85,7 +91,17 @@ router.get("/:id", async (req, res) => {
       delete result.phone;
       delete result.email;
       delete result.companyEmail;
+      delete result.resumeUrl;
+      delete result.resume;
+      delete result.resumeData;
+      delete result.resumeText;
     }
+
+    result.hasResume = hasResume;
+    result.hasContact = hasContact;
+    result.hasPhone = hasPhone;
+    result.hasEmail = hasEmail;
+    result.showContact = showContact;
 
     res.json(result);
   } catch (err) {

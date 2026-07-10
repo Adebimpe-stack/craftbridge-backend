@@ -6,6 +6,45 @@ const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
 
 // =========================
+// CLIENT: GET SERVICE REQUEST LIMITS
+// GET /api/service-requests/limits
+// =========================
+router.get("/limits", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select(
+      "hasUsedFreeServiceRequest serviceRequestsRemaining subscriptionActive subscriptionExpiry"
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const now = new Date();
+    const subscriptionActive =
+      user.subscriptionActive &&
+      user.subscriptionExpiry &&
+      new Date(user.subscriptionExpiry) > now;
+
+    const remaining = subscriptionActive
+      ? user.serviceRequestsRemaining
+      : user.hasUsedFreeServiceRequest
+      ? 0
+      : 1;
+
+    res.json({
+      hasUsedFreeServiceRequest: user.hasUsedFreeServiceRequest,
+      serviceRequestsRemaining: user.serviceRequestsRemaining,
+      subscriptionActive,
+      remaining,
+      unlimited: subscriptionActive && user.serviceRequestsRemaining === -1,
+    });
+  } catch (err) {
+    console.error("SERVICE REQUEST LIMITS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
 // CLIENT: SUBMIT A SERVICE REQUEST
 // POST /api/service-requests
 // =========================
@@ -32,6 +71,27 @@ router.post("/", auth, async (req, res) => {
       return res.status(403).json({ message: "You can only send service requests to verified professionals." });
     }
 
+    // =========================
+    // SERVICE REQUEST LIMITS
+    // =========================
+    const client = await User.findById(req.user._id);
+    if (!client) {
+      return res.status(404).json({ message: "Client not found." });
+    }
+
+    const hasRemaining =
+      client.subscriptionActive &&
+      client.serviceRequestsRemaining > 0;
+
+    const canUseFree = !client.hasUsedFreeServiceRequest;
+
+    if (!canUseFree && !hasRemaining) {
+      return res.status(403).json({
+        message: "You have used your free service request. Upgrade your subscription to send additional service requests.",
+        code: "SERVICE_REQUEST_LIMIT_EXCEEDED",
+      });
+    }
+
     const serviceRequest = await ServiceRequest.create({
       professional: professionalId,
       client: req.user._id,
@@ -41,6 +101,14 @@ router.post("/", auth, async (req, res) => {
       preferredDate: preferredDate ? new Date(preferredDate) : undefined,
       budget,
     });
+
+    // Consume the service request entitlement
+    if (canUseFree) {
+      client.hasUsedFreeServiceRequest = true;
+    } else if (hasRemaining) {
+      client.serviceRequestsRemaining = Math.max(0, client.serviceRequestsRemaining - 1);
+    }
+    await client.save();
 
     // Notify professional by email (non-blocking)
     sendEmail({

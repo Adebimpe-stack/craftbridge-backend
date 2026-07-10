@@ -59,6 +59,9 @@ const activateSubscription = async (companyId, userId, plan = "premium", days = 
   const expiry = new Date();
   expiry.setDate(expiry.getDate() + days);
 
+  // Service request entitlement: -1 means unlimited for this plan
+  const serviceRequestsRemaining = -1;
+
   if (companyId) {
     await Company.findByIdAndUpdate(companyId, {
       subscriptionActive: true,
@@ -66,13 +69,25 @@ const activateSubscription = async (companyId, userId, plan = "premium", days = 
       subscriptionExpiry: expiry,
     }, { runValidators: false });
 
-    await syncSubscriptionToUser(companyId, userId);
+    await User.findByIdAndUpdate(userId, {
+      subscriptionActive: true,
+      subscriptionPlan: plan,
+      subscriptionExpiry: expiry,
+      serviceRequestsRemaining,
+      subscription: {
+        plan,
+        isActive: true,
+        startDate: new Date(),
+        expiresAt: expiry,
+      },
+    }, { runValidators: false });
   } else if (userId) {
     // No company on file — activate the user record directly
     await User.findByIdAndUpdate(userId, {
       subscriptionActive: true,
       subscriptionPlan: plan,
       subscriptionExpiry: expiry,
+      serviceRequestsRemaining,
       subscription: {
         plan,
         isActive: true,
@@ -98,12 +113,24 @@ const deactivateSubscription = async (companyId, userId) => {
       subscriptionExpiry: null,
     }, { runValidators: false });
 
-    await syncSubscriptionToUser(companyId, userId);
+    await User.findByIdAndUpdate(userId, {
+      subscriptionActive: false,
+      subscriptionPlan: "free",
+      subscriptionExpiry: null,
+      serviceRequestsRemaining: 0,
+      subscription: {
+        plan: "free",
+        isActive: false,
+        startDate: null,
+        expiresAt: null,
+      },
+    }, { runValidators: false });
   } else if (userId) {
     await User.findByIdAndUpdate(userId, {
       subscriptionActive: false,
       subscriptionPlan: "free",
       subscriptionExpiry: null,
+      serviceRequestsRemaining: 0,
       subscription: {
         plan: "free",
         isActive: false,

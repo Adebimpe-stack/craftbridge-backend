@@ -344,6 +344,17 @@ companyRole: {
         default: false,
       },
 
+      hasUsedFreeServiceRequest: {
+        type: Boolean,
+        default: false,
+      },
+
+      serviceRequestsRemaining: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
       subscriptionActive: {
         type: Boolean,
         default: false,
