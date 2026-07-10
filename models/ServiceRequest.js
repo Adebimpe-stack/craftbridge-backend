@@ -57,6 +57,10 @@ const serviceRequestSchema = new mongoose.Schema(
       trim: true,
     },
 
+    acceptedAt: {
+      type: Date,
+    },
+
     completedAt: {
       type: Date,
     },

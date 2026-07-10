@@ -189,19 +189,25 @@ router.put("/:id/status", auth, async (req, res) => {
     }
 
     const request = await ServiceRequest.findById(req.params.id)
-      .populate("client", "name email");
+      .populate("client", "name email companyId")
+      .populate("professional", "name primaryTrade");
 
     if (!request) {
       return res.status(404).json({ message: "Request not found." });
     }
 
-    if (request.professional.toString() !== req.user._id.toString()) {
+    if (request.professional._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized." });
     }
+
+    const previousStatus = request.status;
 
     request.status = status;
     if (status === "declined" && declineReason) {
       request.declineReason = declineReason;
+    }
+    if (status === "accepted" && previousStatus !== "accepted") {
+      request.acceptedAt = new Date();
     }
     if (status === "completed") {
       request.completedAt = new Date();
@@ -211,20 +217,70 @@ router.put("/:id/status", auth, async (req, res) => {
 
     // Notify client (non-blocking)
     const statusLabels = { accepted: "Accepted", declined: "Declined", completed: "Completed" };
-    sendEmail({
-      to: request.client.email,
-      subject: `Service Request ${statusLabels[status]} — CraftBridge`,
-      html: `
-        <div style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
-          <div style="max-width:520px;margin:auto;background:white;border-radius:12px;padding:32px;">
-            <h2 style="color:#166534;">Service Request ${statusLabels[status]}</h2>
-            <p style="color:#475569;">Hi ${request.client.name}, your service request for <strong>${request.serviceType}</strong> has been <strong>${status}</strong>.</p>
-            ${status === "declined" && declineReason ? `<p style="color:#475569;"><strong>Reason:</strong> ${declineReason}</p>` : ""}
-            <a href="${process.env.CLIENT_URL}/my-service-requests" style="display:inline-block;margin-top:16px;background:#166534;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Status</a>
+
+    if (status === "accepted" && previousStatus !== "accepted") {
+      const acceptedDate = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      const profileUrl = `${process.env.CLIENT_URL}/professional/${request.professional._id}`;
+
+      sendEmail({
+        to: request.client.email,
+        subject: "Your service request has been accepted",
+        html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
+            <div style="max-width:560px;margin:auto;background:white;border-radius:12px;padding:32px;border:1px solid #e2e8f0;">
+              <h2 style="color:#166534;margin-top:0;">Your service request has been accepted</h2>
+
+              <p style="color:#475569;">Hi ${request.client.name},</p>
+
+              <p style="color:#475569;">
+                <strong>${request.professional.name}</strong> has accepted your request for
+                <strong>${request.serviceType}</strong>.
+              </p>
+
+              <div style="background:#f8fafc;border-radius:8px;padding:16px;margin:20px 0;">
+                <p style="margin:4px 0;color:#334155;"><strong>Professional:</strong> ${request.professional.name}</p>
+                <p style="margin:4px 0;color:#334155;"><strong>Primary trade:</strong> ${request.professional.primaryTrade || "N/A"}</p>
+                <p style="margin:4px 0;color:#334155;"><strong>Service requested:</strong> ${request.serviceType}</p>
+                <p style="margin:4px 0;color:#334155;"><strong>Date accepted:</strong> ${acceptedDate}</p>
+              </div>
+
+              <p style="color:#475569;">
+                The professional's contact information and resume are now unlocked for you on CraftBridge.
+                You can log in to continue the conversation.
+              </p>
+
+              <a href="${profileUrl}" style="display:inline-block;margin-top:16px;background:#166534;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Unlocked Profile</a>
+
+              <p style="color:#94a3b8;font-size:12px;margin-top:32px;border-top:1px solid #e2e8f0;padding-top:16px;">
+                You are receiving this email because you have an active service request on CraftBridge.<br/>
+                Questions? Contact us at <a href="mailto:hire@craftbridgejobs.com" style="color:#166534;">hire@craftbridgejobs.com</a>
+              </p>
+            </div>
           </div>
-        </div>
-      `,
-    }).catch(() => {});
+        `,
+      }).catch(() => {});
+    } else if (status !== "accepted") {
+      sendEmail({
+        to: request.client.email,
+        subject: `Service Request ${statusLabels[status]} — CraftBridge`,
+        html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
+            <div style="max-width:520px;margin:auto;background:white;border-radius:12px;padding:32px;">
+              <h2 style="color:#166534;">Service Request ${statusLabels[status]}</h2>
+              <p style="color:#475569;">Hi ${request.client.name}, your service request for <strong>${request.serviceType}</strong> has been <strong>${status}</strong>.</p>
+              ${status === "declined" && declineReason ? `<p style="color:#475569;"><strong>Reason:</strong> ${declineReason}</p>` : ""}
+              <a href="${process.env.CLIENT_URL}/my-service-requests" style="display:inline-block;margin-top:16px;background:#166534;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Status</a>
+            </div>
+          </div>
+        `,
+      }).catch(() => {});
+    }
 
     res.json({ message: `Request ${status} successfully.`, request });
   } catch (err) {
