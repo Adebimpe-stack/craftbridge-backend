@@ -776,6 +776,12 @@ router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
       update["socialLinks.linkedin"] = update.linkedin;
     }
 
+    // Treat resumeUrl as the single source of truth; clear legacy resume fields when it changes
+    if (update.resumeUrl !== undefined) {
+      update.resume = "";
+      update.resumeData = null;
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       update,
