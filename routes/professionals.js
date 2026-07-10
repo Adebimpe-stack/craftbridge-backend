@@ -60,10 +60,19 @@ router.get("/:id", async (req, res) => {
     const result = professional.toObject();
 
     // Preserve whether sensitive data exists before we strip it
-    const hasResume = !!(result.resumeUrl || result.resume || result.resumeData);
-    const hasPhone = !!result.phone;
-    const hasEmail = !!result.email;
-    const hasContact = hasPhone || hasEmail || !!(result.companyEmail);
+    const hasResume = !!(
+      result.resumeUrl ||
+      result.resume ||
+      result.resumeData ||
+      result.resumeText
+    );
+    const hasPhone = !!(
+      result.phone ||
+      result.socialLinks?.phone ||
+      result.socialLinks?.whatsapp
+    );
+    const hasEmail = !!(result.email || result.companyEmail);
+    const hasContact = hasPhone || hasEmail;
 
     let showContact = false;
     const authHeader = req.header("Authorization");
