@@ -771,6 +771,11 @@ router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
       }
     }
 
+    // Sync socialLinks.linkedin so the UI stays consistent
+    if (update.linkedin !== undefined) {
+      update["socialLinks.linkedin"] = update.linkedin;
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       update,
