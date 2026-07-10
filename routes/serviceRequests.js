@@ -1,31 +1,21 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/auth");
+const subscription = require("../middleware/subscription");
 const ServiceRequest = require("../models/ServiceRequest");
 const User = require("../models/User");
+const Company = require("../models/Company");
 const sendEmail = require("../utils/sendEmail");
 
 // =========================
 // CLIENT: GET SERVICE REQUEST LIMITS
 // GET /api/service-requests/limits
 // =========================
-router.get("/limits", auth, async (req, res) => {
+router.get("/limits", auth, subscription, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select(
-      "hasUsedFreeServiceRequest serviceRequestsRemaining subscriptionActive subscriptionExpiry"
-    );
+    const user = req.userData;
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const now = new Date();
-    const subscriptionActive =
-      user.subscriptionActive &&
-      user.subscriptionExpiry &&
-      new Date(user.subscriptionExpiry) > now;
-
-    const remaining = subscriptionActive
+    const remaining = req.isSubscribed
       ? user.serviceRequestsRemaining
       : user.hasUsedFreeServiceRequest
       ? 0
@@ -34,9 +24,9 @@ router.get("/limits", auth, async (req, res) => {
     res.json({
       hasUsedFreeServiceRequest: user.hasUsedFreeServiceRequest,
       serviceRequestsRemaining: user.serviceRequestsRemaining,
-      subscriptionActive,
+      subscriptionActive: req.isSubscribed,
       remaining,
-      unlimited: subscriptionActive && user.serviceRequestsRemaining === -1,
+      unlimited: req.isSubscribed && user.serviceRequestsRemaining === -1,
     });
   } catch (err) {
     console.error("SERVICE REQUEST LIMITS ERROR:", err);
@@ -48,7 +38,7 @@ router.get("/limits", auth, async (req, res) => {
 // CLIENT: SUBMIT A SERVICE REQUEST
 // POST /api/service-requests
 // =========================
-router.post("/", auth, async (req, res) => {
+router.post("/", auth, subscription, async (req, res) => {
   try {
     const { professionalId, serviceType, description, location, preferredDate, budget } = req.body;
 
@@ -56,6 +46,26 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({
         message: "Professional, service type, and description are required.",
       });
+    }
+
+    // =========================
+    // CLIENT TRUST CHECKS
+    // =========================
+    const client = req.userData;
+
+    if (client.accountStatus === "suspended" || client.accountStatus === "deactivated") {
+      return res.status(403).json({ message: "Your account is not active." });
+    }
+
+    if (!client.isVerified) {
+      return res.status(403).json({ message: "Please verify your email before sending service requests." });
+    }
+
+    if (client.role === "employer") {
+      const company = await Company.findById(client.companyId).select("verificationStatus");
+      if (!company || company.verificationStatus !== "verified") {
+        return res.status(403).json({ message: "Your company must be verified by an admin before sending service requests." });
+      }
     }
 
     const professional = await User.findById(professionalId).select("name email role workerVerificationStatus accountStatus");
@@ -74,14 +84,9 @@ router.post("/", auth, async (req, res) => {
     // =========================
     // SERVICE REQUEST LIMITS
     // =========================
-    const client = await User.findById(req.user._id);
-    if (!client) {
-      return res.status(404).json({ message: "Client not found." });
-    }
-
     const hasRemaining =
-      client.subscriptionActive &&
-      client.serviceRequestsRemaining > 0;
+      req.isSubscribed &&
+      (client.serviceRequestsRemaining > 0 || client.serviceRequestsRemaining === -1);
 
     const canUseFree = !client.hasUsedFreeServiceRequest;
 
@@ -105,7 +110,7 @@ router.post("/", auth, async (req, res) => {
     // Consume the service request entitlement
     if (canUseFree) {
       client.hasUsedFreeServiceRequest = true;
-    } else if (hasRemaining) {
+    } else if (hasRemaining && client.serviceRequestsRemaining > 0) {
       client.serviceRequestsRemaining = Math.max(0, client.serviceRequestsRemaining - 1);
     }
     await client.save();

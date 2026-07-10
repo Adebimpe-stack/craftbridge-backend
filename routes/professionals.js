@@ -76,7 +76,7 @@ router.get("/:id", async (req, res) => {
         const acceptedRequest = await ServiceRequest.findOne({
           professional: req.params.id,
           client: clientId,
-          status: "accepted",
+          status: { $in: ["accepted", "completed"] },
         });
 
         if (acceptedRequest) {
