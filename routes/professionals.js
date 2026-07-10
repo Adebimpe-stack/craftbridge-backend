@@ -73,10 +73,17 @@ router.get("/:id", async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const clientId = decoded.user?.id || decoded.id;
 
+        // Unlock by client-user relationship or by company relationship
+        const client = await User.findById(clientId).select("companyId");
+        const companyId = client?.companyId;
+
         const acceptedRequest = await ServiceRequest.findOne({
           professional: req.params.id,
-          client: clientId,
           status: { $in: ["accepted", "completed"] },
+          $or: [
+            { client: clientId },
+            ...(companyId ? [{ companyId }] : []),
+          ],
         });
 
         if (acceptedRequest) {

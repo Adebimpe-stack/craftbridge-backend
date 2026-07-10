@@ -14,6 +14,12 @@ const serviceRequestSchema = new mongoose.Schema(
       required: true,
     },
 
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+    },
+
     serviceType: {
       type: String,
       required: true,

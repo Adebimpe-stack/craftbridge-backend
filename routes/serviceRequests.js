@@ -100,6 +100,7 @@ router.post("/", auth, subscription, async (req, res) => {
     const serviceRequest = await ServiceRequest.create({
       professional: professionalId,
       client: req.user._id,
+      companyId: client.companyId || null,
       serviceType,
       description,
       location,
