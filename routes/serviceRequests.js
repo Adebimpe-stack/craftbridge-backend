@@ -166,7 +166,11 @@ router.get("/incoming", auth, async (req, res) => {
 // =========================
 router.get("/my", auth, async (req, res) => {
   try {
-    const requests = await ServiceRequest.find({ client: req.user._id })
+    const query = req.user.companyId
+      ? { $or: [{ client: req.user._id }, { companyId: req.user.companyId }] }
+      : { client: req.user._id };
+
+    const requests = await ServiceRequest.find(query)
       .populate("professional", "name email profilePicture primaryTrade location")
       .sort({ createdAt: -1 });
 

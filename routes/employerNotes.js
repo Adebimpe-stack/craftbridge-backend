@@ -5,93 +5,6 @@ const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
 
 // =========================
-// TIMELINE
-// GET /api/employer-notes/timeline/:professionalId
-// =========================
-router.get("/timeline/:professionalId", auth, async (req, res) => {
-  try {
-    const owner = getOwner(req.user);
-    const professionalId = req.params.professionalId;
-
-    const serviceQuery = {
-      professional: professionalId,
-    };
-
-    if (owner.ownerType === "company") {
-      serviceQuery.companyId = owner.ownerId;
-    } else {
-      serviceQuery.client = owner.ownerId;
-    }
-
-    const [requests, note] = await Promise.all([
-      ServiceRequest.find(serviceQuery).sort({ createdAt: -1 }),
-      EmployerProfessionalNote.findOne({
-        ...owner,
-        professional: professionalId,
-      }),
-    ]);
-
-    const events = [];
-
-    requests.forEach((req) => {
-      events.push({
-        type: "request_sent",
-        title: "Service request sent",
-        date: req.createdAt,
-        serviceType: req.serviceType,
-      });
-
-      if (req.status === "accepted" || req.status === "completed") {
-        events.push({
-          type: "request_accepted",
-          title: "Service request accepted",
-          date: req.acceptedAt || req.updatedAt,
-          serviceType: req.serviceType,
-        });
-
-        events.push({
-          type: "contact_unlocked",
-          title: "Contact details unlocked",
-          date: req.acceptedAt || req.updatedAt,
-          serviceType: req.serviceType,
-        });
-
-        events.push({
-          type: "resume_unlocked",
-          title: "Resume unlocked",
-          date: req.acceptedAt || req.updatedAt,
-          serviceType: req.serviceType,
-        });
-      }
-
-      if (req.status === "completed" && req.completedAt) {
-        events.push({
-          type: "request_completed",
-          title: "Service request completed",
-          date: req.completedAt,
-          serviceType: req.serviceType,
-        });
-      }
-    });
-
-    if (note) {
-      events.push({
-        type: "note_updated",
-        title: "Private note updated",
-        date: note.updatedAt,
-      });
-    }
-
-    events.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    res.json({ events });
-  } catch (err) {
-    console.error("GET EMPLOYER TIMELINE ERROR:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// =========================
 // HELPER: get owner context from current user
 // =========================
 const getOwner = (user) => {
@@ -120,23 +33,100 @@ const hasUnlockedRelationship = async (professionalId, owner) => {
 };
 
 // =========================
-// GET NOTE
+// TIMELINE
+// GET /api/employer-notes/timeline/:professionalId
+// =========================
+router.get("/timeline/:professionalId", auth, async (req, res) => {
+  try {
+    const owner = getOwner(req.user);
+    const professionalId = req.params.professionalId;
+
+    const serviceQuery = {
+      professional: professionalId,
+    };
+
+    if (owner.ownerType === "company") {
+      serviceQuery.companyId = owner.ownerId;
+    } else {
+      serviceQuery.client = owner.ownerId;
+    }
+
+    const [requests, relationship] = await Promise.all([
+      ServiceRequest.find(serviceQuery).sort({ createdAt: -1 }),
+      EmployerProfessionalNote.findOne({
+        ...owner,
+        professional: professionalId,
+      }),
+    ]);
+
+    const events = [];
+
+    requests.forEach((req) => {
+      events.push({
+        type: "request_sent",
+        title: "Service request sent",
+        date: req.createdAt,
+        serviceType: req.serviceType,
+      });
+
+      if (req.status === "accepted" || req.status === "completed") {
+        events.push({
+          type: "request_accepted",
+          title: "Service request accepted",
+          date: req.acceptedAt || req.updatedAt,
+          serviceType: req.serviceType,
+        });
+
+        events.push({
+          type: "access_granted",
+          title: "Access granted",
+          subtitle: "Contact details and resume are now available.",
+          date: req.acceptedAt || req.updatedAt,
+          serviceType: req.serviceType,
+        });
+      }
+
+      if (req.status === "completed" && req.completedAt) {
+        events.push({
+          type: "request_completed",
+          title: "Service request completed",
+          date: req.completedAt,
+          serviceType: req.serviceType,
+        });
+      }
+    });
+
+    if (relationship?.note?.trim()) {
+      events.push({
+        type: "note_updated",
+        title: "Private note updated",
+        date: relationship.updatedAt,
+      });
+    }
+
+    events.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({ events });
+  } catch (err) {
+    console.error("GET EMPLOYER TIMELINE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// GET RELATIONSHIP (note, tags, rating, saved)
 // GET /api/employer-notes/:professionalId
 // =========================
 router.get("/:professionalId", auth, async (req, res) => {
   try {
     const owner = getOwner(req.user);
 
-    const note = await EmployerProfessionalNote.findOne({
+    const relationship = await EmployerProfessionalNote.findOne({
       ...owner,
       professional: req.params.professionalId,
     });
 
-    if (!note) {
-      return res.json({ note: null });
-    }
-
-    res.json({ note });
+    res.json({ note: relationship || null });
   } catch (err) {
     console.error("GET EMPLOYER NOTE ERROR:", err);
     res.status(500).json({ message: "Server error" });
@@ -144,18 +134,42 @@ router.get("/:professionalId", auth, async (req, res) => {
 });
 
 // =========================
-// CREATE / UPDATE NOTE
+// CREATE / UPDATE RELATIONSHIP
 // POST /api/employer-notes/:professionalId
 // =========================
 router.post("/:professionalId", auth, async (req, res) => {
   try {
-    const { note: noteText } = req.body;
+    const { note, tags, rating } = req.body;
+    const owner = getOwner(req.user);
 
-    if (!noteText || !noteText.trim()) {
-      return res.status(400).json({ message: "Note text is required." });
+    const update = {};
+
+    if (note !== undefined) {
+      update.note = note.trim();
     }
 
-    const owner = getOwner(req.user);
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return res.status(400).json({ message: "Tags must be an array." });
+      }
+      update.tags = tags.map((t) => String(t).trim()).filter(Boolean);
+    }
+
+    if (rating !== undefined) {
+      const numericRating = Number(rating);
+      if (
+        !Number.isInteger(numericRating) ||
+        numericRating < 1 ||
+        numericRating > 5
+      ) {
+        return res.status(400).json({ message: "Rating must be 1–5." });
+      }
+      update.rating = numericRating;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "Nothing to update." });
+    }
 
     const unlocked = await hasUnlockedRelationship(
       req.params.professionalId,
@@ -164,17 +178,17 @@ router.post("/:professionalId", auth, async (req, res) => {
 
     if (!unlocked) {
       return res.status(403).json({
-        message: "You can only add notes for professionals you have unlocked.",
+        message: "You can only update notes for professionals you have unlocked.",
       });
     }
 
-    const note = await EmployerProfessionalNote.findOneAndUpdate(
+    const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
-      { note: noteText.trim() },
+      update,
       { new: true, upsert: true, runValidators: true }
     );
 
-    res.json({ message: "Note saved.", note });
+    res.json({ message: "Saved.", note: relationship });
   } catch (err) {
     console.error("SAVE EMPLOYER NOTE ERROR:", err);
     res.status(500).json({ message: "Server error" });
@@ -182,56 +196,108 @@ router.post("/:professionalId", auth, async (req, res) => {
 });
 
 // =========================
-// UPDATE NOTE
-// PUT /api/employer-notes/:professionalId
+// SAVE / UNSAVE PROFESSIONAL
+// POST /api/employer-notes/save/:professionalId
+// DELETE /api/employer-notes/save/:professionalId
 // =========================
-router.put("/:professionalId", auth, async (req, res) => {
+router.post("/save/:professionalId", auth, async (req, res) => {
   try {
-    const { note: noteText } = req.body;
-
-    if (!noteText || !noteText.trim()) {
-      return res.status(400).json({ message: "Note text is required." });
-    }
-
     const owner = getOwner(req.user);
 
-    const note = await EmployerProfessionalNote.findOneAndUpdate(
+    const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
-      { note: noteText.trim() },
+      { isSaved: true },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    res.json({ message: "Professional saved.", note: relationship });
+  } catch (err) {
+    console.error("SAVE PROFESSIONAL ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.delete("/save/:professionalId", auth, async (req, res) => {
+  try {
+    const owner = getOwner(req.user);
+
+    const relationship = await EmployerProfessionalNote.findOneAndUpdate(
+      { ...owner, professional: req.params.professionalId },
+      { isSaved: false },
       { new: true, runValidators: true }
     );
 
-    if (!note) {
-      return res.status(404).json({ message: "Note not found." });
+    if (!relationship) {
+      return res.status(404).json({ message: "Saved professional not found." });
     }
 
-    res.json({ message: "Note updated.", note });
+    res.json({ message: "Removed from saved.", note: relationship });
   } catch (err) {
-    console.error("UPDATE EMPLOYER NOTE ERROR:", err);
+    console.error("UNSAVE PROFESSIONAL ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 // =========================
-// DELETE NOTE
-// DELETE /api/employer-notes/:professionalId
+// LIST SAVED PROFESSIONALS
+// GET /api/employer-notes/saved/list
 // =========================
-router.delete("/:professionalId", auth, async (req, res) => {
+router.get("/saved/list", auth, async (req, res) => {
   try {
     const owner = getOwner(req.user);
 
-    const note = await EmployerProfessionalNote.findOneAndDelete({
+    const saved = await EmployerProfessionalNote.find({
       ...owner,
-      professional: req.params.professionalId,
-    });
+      isSaved: true,
+    })
+      .populate("professional", "name profilePicture primaryTrade location city state")
+      .sort({ updatedAt: -1 });
 
-    if (!note) {
-      return res.status(404).json({ message: "Note not found." });
+    res.json({ saved });
+  } catch (err) {
+    console.error("LIST SAVED PROFESSIONALS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// UPDATE RATING ONLY
+// PUT /api/employer-notes/rating/:professionalId
+// =========================
+router.put("/rating/:professionalId", auth, async (req, res) => {
+  try {
+    const { rating } = req.body;
+    const owner = getOwner(req.user);
+
+    const numericRating = Number(rating);
+    if (
+      !Number.isInteger(numericRating) ||
+      numericRating < 1 ||
+      numericRating > 5
+    ) {
+      return res.status(400).json({ message: "Rating must be 1–5." });
     }
 
-    res.json({ message: "Note deleted." });
+    const unlocked = await hasUnlockedRelationship(
+      req.params.professionalId,
+      owner
+    );
+
+    if (!unlocked) {
+      return res.status(403).json({
+        message: "You can only rate professionals you have unlocked.",
+      });
+    }
+
+    const relationship = await EmployerProfessionalNote.findOneAndUpdate(
+      { ...owner, professional: req.params.professionalId },
+      { rating: numericRating },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    res.json({ message: "Rating saved.", note: relationship });
   } catch (err) {
-    console.error("DELETE EMPLOYER NOTE ERROR:", err);
+    console.error("SAVE RATING ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

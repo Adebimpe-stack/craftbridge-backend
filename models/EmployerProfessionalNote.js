@@ -22,9 +22,32 @@ const employerProfessionalNoteSchema = new mongoose.Schema(
 
     note: {
       type: String,
-      required: true,
       trim: true,
       maxlength: 5000,
+      default: "",
+    },
+
+    tags: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (tags) {
+          return tags.every((t) => typeof t === "string" && t.length <= 50);
+        },
+        message: "Each tag must be a string of 50 characters or less.",
+      },
+    },
+
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+      default: null,
+    },
+
+    isSaved: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

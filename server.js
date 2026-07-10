@@ -66,6 +66,9 @@ const serviceRequestRoutes =
 const employerNoteRoutes =
   require("./routes/employerNotes");
 
+const dashboardRoutes =
+  require("./routes/dashboard");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -216,6 +219,8 @@ app.use("/api", paystackWebhookRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
 
 app.use("/api/employer-notes", employerNoteRoutes);
+
+app.use("/api/dashboard", dashboardRoutes);
 
 app.use("/api/admin", adminRoutes);
 
