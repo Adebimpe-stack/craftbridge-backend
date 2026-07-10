@@ -71,6 +71,10 @@ const userSchema =
         type: String,
         default: "",
       },
+      category: {
+        type: String,
+        default: "",
+      },
       serviceDescription: {
         type: String,
       },
