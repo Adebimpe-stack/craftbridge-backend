@@ -35,6 +35,7 @@ router.get("/", async (req, res) => {
 // Contact info is only shown if the logged-in client has an accepted request
 // =========================
 router.get("/:id", async (req, res) => {
+  console.log("USING PROFESSIONAL ROUTE");
   try {
     const professional = await User.findById(req.params.id).select(
       PUBLIC_FIELDS
@@ -123,6 +124,12 @@ router.get("/:id", async (req, res) => {
     result.hasPhone = hasPhone;
     result.hasEmail = hasEmail;
     result.showContact = showContact;
+
+    console.log({
+      hasResume,
+      hasContact,
+      showContact,
+    });
 
     res.json(result);
   } catch (err) {
