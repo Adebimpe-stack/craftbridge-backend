@@ -26,22 +26,23 @@ async function getCompanyMemberIds(companyId) {
 // =========================
 
 function calculateProfessionalCompletion(user) {
-  const checks = [
-    !!(user.profilePicture || user.profileImage),
-    !!(user.primaryTrade),
-    !!(user.bio || user.professionalSummary),
-    !!(user.location || user.city || user.state || user.country),
-    !!(user.phone),
-    Array.isArray(user.skills) && user.skills.length > 0,
-    typeof user.experienceYears === "number" && user.experienceYears > 0,
-    !!(user.resume || user.resumeUrl || user.resumeText || user.resumeData),
-    Array.isArray(user.certifications) && user.certifications.length > 0,
+  const checkList = [
+    { key: "profilePicture", label: "Profile Picture", done: !!(user.profilePicture || user.profileImage) },
+    { key: "primaryTrade", label: "Primary Trade", done: !!(user.primaryTrade) },
+    { key: "bio", label: "About Me", done: !!(user.bio || user.professionalSummary) },
+    { key: "location", label: "Location", done: !!(user.location || user.city || user.state || user.country) },
+    { key: "phone", label: "Phone Number", done: !!(user.phone) },
+    { key: "skills", label: "Skills", done: Array.isArray(user.skills) && user.skills.length > 0 },
+    { key: "experience", label: "Experience", done: typeof user.experienceYears === "number" && user.experienceYears > 0 },
+    { key: "resume", label: "Resume", done: !!(user.resume || user.resumeUrl || user.resumeText || user.resumeData) },
+    { key: "certifications", label: "Certifications", done: Array.isArray(user.certifications) && user.certifications.length > 0 },
   ];
 
-  const completed = checks.filter(Boolean).length;
-  const percentage = Math.round((completed / checks.length) * 100);
+  const completed = checkList.filter((c) => c.done).length;
+  const percentage = Math.round((completed / checkList.length) * 100);
+  const remaining = checkList.filter((c) => !c.done).map((c) => c.label);
 
-  return { percentage, total: checks.length, completed };
+  return { percentage, total: checkList.length, completed, remaining };
 }
 
 async function calculateEmployerCompletion(user) {
