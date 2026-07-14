@@ -3,8 +3,11 @@ const router = express.Router();
 const auth = require("../middleware/auth");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const Job = require("../models/Job");
+const Application = require("../models/Application");
 const ServiceRequest = require("../models/ServiceRequest");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
+const ProfileView = require("../models/ProfileView");
 const { isPubliclyEligible } = require("../utils/professionalRanking");
 const { getProfileViewAnalytics } = require("../services/profileViewService");
 
@@ -129,7 +132,12 @@ router.get("/employer", auth, async (req, res) => {
           }
         : { client: owner.ownerId };
 
-    const [totalRequests, accepted, completed, savedCount, completion] =
+    // Job and application metrics for the employer/company.
+    const jobQuery = owner.ownerType === "company"
+      ? { companyId: owner.ownerId, isDeleted: false }
+      : { createdBy: owner.ownerId, isDeleted: false };
+
+    const [totalRequests, accepted, completed, savedCount, completion, jobs, applications] =
       await Promise.all([
         ServiceRequest.countDocuments(requestQuery),
         ServiceRequest.countDocuments({ ...requestQuery, status: "accepted" }),
@@ -139,19 +147,58 @@ router.get("/employer", auth, async (req, res) => {
           isSaved: true,
         }),
         calculateEmployerCompletion(user),
+        Job.find(jobQuery).select("_id status").lean(),
+        Application.countDocuments({
+          job: { $in: (await Job.find(jobQuery).select("_id").lean()).map((j) => j._id) },
+        }),
       ]);
+
+    const jobIds = jobs.map((j) => j._id);
+    const activeJobs = jobs.filter((j) => j.status === "active").length;
+
+    // Recent service requests.
+    const recentServiceRequests = await ServiceRequest.find(requestQuery)
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("serviceType status createdAt")
+      .lean();
+
+    // Recently viewed professionals by this employer/company user.
+    const recentProfessionalViews = await ProfileView.find({
+      viewer: user._id,
+      viewerType: "company",
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate("professional", "name primaryTrade profileImage profilePicture")
+      .select("professional createdAt")
+      .lean();
 
     const remaining = await getRemainingServiceRequests(user);
 
     res.json({
+      jobs: {
+        posted: jobs.length,
+        active: activeJobs,
+      },
+      applicationsReceived: applications,
       serviceRequests: {
         total: totalRequests,
         accepted,
         completed,
+        recent: recentServiceRequests,
         remaining: remaining === Infinity ? -1 : remaining,
         unlimited: remaining === Infinity,
       },
       savedProfessionals: savedCount,
+      recentProfessionalViews: recentProfessionalViews.map((view) => ({
+        professionalId: view.professional?._id || null,
+        name: view.professional?.name || "Unknown",
+        primaryTrade: view.professional?.primaryTrade || "",
+        profileImage: view.professional?.profileImage || view.professional?.profilePicture || "",
+        viewedAt: view.createdAt,
+      })),
+      notifications: [], // Reserved for the internal notification system.
       profileCompletion: completion,
     });
   } catch (err) {
