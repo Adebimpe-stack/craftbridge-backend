@@ -9,14 +9,7 @@ const sendEmail =
   }) => {
 
     try {
-
-      console.log(
-        "SMTP USER:",
-        process.env.SMTP_USER
-      );
-
-      const transporter =
-        nodemailer.createTransport({
+      const transporter = nodemailer.createTransport({
 
           host:
             process.env.SMTP_HOST,
@@ -57,18 +50,8 @@ const sendEmail =
 
         });
 
-      console.log(
-        "EMAIL SENT:",
-        info.response
-      );
-
     } catch (error) {
-
-      console.log(
-        "EMAIL ERROR:",
-        error
-      );
-
+      console.error("EMAIL ERROR:", error);
     }
 
   };

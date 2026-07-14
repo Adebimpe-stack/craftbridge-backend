@@ -297,10 +297,7 @@ router.post(
 
     } catch (error) {
 
-      console.log(
-        "REGISTER ERROR:",
-        error
-      );
+      console.error("REGISTER ERROR:", error);
 
       return res
         .status(500)
@@ -381,10 +378,7 @@ router.get(
 
     } catch (error) {
 
-      console.log(
-        "VERIFY EMAIL ERROR:",
-        error
-      );
+      console.error("VERIFY EMAIL ERROR:", error);
 
       return res
         .status(500)
@@ -410,19 +404,8 @@ router.post(
 
   async (req, res) => {
 
-    const requestStart = Date.now();
     const { email, password } = req.body;
     const normalizedEmail = (email || "").toLowerCase().trim();
-
-    console.log(`[LOGIN LIFECYCLE] Route entered for ${normalizedEmail || "unknown"} at ${requestStart}`);
-
-    res.on("finish", () => {
-      console.log(`[LOGIN LIFECYCLE] Response finished for ${normalizedEmail || "unknown"} in ${Date.now() - requestStart}ms`);
-    });
-
-    res.on("close", () => {
-      console.log(`[LOGIN LIFECYCLE] Response connection closed for ${normalizedEmail || "unknown"} in ${Date.now() - requestStart}ms`);
-    });
 
     if (!normalizedEmail || !password) {
       return res.status(400).json({
@@ -432,24 +415,16 @@ router.post(
 
     try {
       // FIND USER
-      const findUserStart = Date.now();
-      console.log(`[LOGIN LIFECYCLE] User.findOne starting for ${normalizedEmail}`);
       const user = await User.findOne({
         email: normalizedEmail,
       }).select("_id name email password role companyId companyRole isVerified isCompanyVerified accountStatus workerVerificationStatus verificationStatus");
-      const findUserEnd = Date.now();
-      console.log(`[LOGIN LIFECYCLE] User.findOne finished for ${normalizedEmail} in ${findUserEnd - findUserStart}ms (timestamp: ${findUserEnd})`);
 
       if (!user) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
 
       // CHECK PASSWORD
-      const bcryptStart = Date.now();
-      console.log(`[LOGIN LIFECYCLE] bcrypt.compare starting for ${normalizedEmail}`);
       const isMatch = await bcrypt.compare(password, user.password);
-      const bcryptEnd = Date.now();
-      console.log(`[LOGIN LIFECYCLE] bcrypt.compare finished for ${normalizedEmail} in ${bcryptEnd - bcryptStart}ms (timestamp: ${bcryptEnd})`);
 
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
@@ -477,15 +452,11 @@ router.post(
       }
 
       // CREATE TOKEN
-      const jwtStart = Date.now();
-      console.log(`[LOGIN LIFECYCLE] jwt.sign starting for ${normalizedEmail}`);
       const token = jwt.sign(
         { id: user._id },
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
       );
-      const jwtEnd = Date.now();
-      console.log(`[LOGIN LIFECYCLE] jwt.sign finished for ${normalizedEmail} in ${jwtEnd - jwtStart}ms (timestamp: ${jwtEnd})`);
 
       // Prepare minimal user response
       const userResponse = {
@@ -514,23 +485,16 @@ router.post(
       }
 
       // Return authentication response immediately
-      console.log(`[LOGIN LIFECYCLE] Calling res.json for ${normalizedEmail} at ${Date.now()}`);
       res.status(200).json({ token, user: userResponse });
-      console.log(`[LOGIN LIFECYCLE] res.json returned for ${normalizedEmail} at ${Date.now()} (total: ${Date.now() - requestStart}ms)`);
 
       // Non-critical work: update last login asynchronously after response is sent
-      const lastLoginStart = Date.now();
-      console.log(`[LOGIN LIFECYCLE] Async lastLogin update starting for ${normalizedEmail}`);
       User.updateOne({ _id: user._id }, { lastLogin: new Date() })
-        .then(() => {
-          console.log(`[LOGIN LIFECYCLE] Async lastLogin update finished for ${normalizedEmail} in ${Date.now() - lastLoginStart}ms`);
-        })
         .catch((err) => {
-          console.error(`[LOGIN LIFECYCLE] lastLogin update failed for ${normalizedEmail}:`, err.message);
+          console.error(`lastLogin update failed for ${normalizedEmail}:`, err.message);
         });
 
     } catch (error) {
-      console.log("LOGIN ERROR:", error);
+      console.error("LOGIN ERROR:", error);
       return res.status(500).json({ message: "Server error" });
     }
 
@@ -638,10 +602,7 @@ router.post(
 
     } catch (error) {
 
-      console.log(
-        "FORGOT PASSWORD ERROR:",
-        error
-      );
+      console.error("FORGOT PASSWORD ERROR:", error);
 
       return res
         .status(500)
@@ -743,10 +704,7 @@ router.post(
 
     } catch (error) {
 
-      console.log(
-        "RESET PASSWORD ERROR:",
-        error
-      );
+      console.error("RESET PASSWORD ERROR:", error);
 
       return res
         .status(500)

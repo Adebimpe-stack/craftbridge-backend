@@ -50,13 +50,12 @@ router.post("/paystack/webhook", async (req, res) => {
         30
       );
 
-      console.log(`Subscription activated for ${email}`);
     }
 
     res.sendStatus(200);
 
   } catch (err) {
-    console.log(err);
+    console.error("Paystack webhook error:", err);
     res.sendStatus(500);
   }
 });

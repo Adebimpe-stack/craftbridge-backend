@@ -17,9 +17,7 @@ router.get("/employer/subscription-status", auth, async (req, res) => {
       canPostJob
     });
 
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {    res.status(500).json({ message: "Server error" });
   }
 });
 

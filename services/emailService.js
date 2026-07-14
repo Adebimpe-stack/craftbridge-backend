@@ -136,7 +136,6 @@ const sendInvitationEmail = async ({
       `,
     });
 
-    console.log("INVITATION EMAIL SENT:", info.response);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error("INVITATION EMAIL ERROR:", error);

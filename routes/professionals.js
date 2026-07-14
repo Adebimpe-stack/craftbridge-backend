@@ -26,9 +26,6 @@ router.get("/", async (req, res) => {
       trade,
       skill,
       location,
-      country,
-      state,
-      city,
       minExperience,
       availability,
       emergency,
@@ -60,6 +57,7 @@ router.get("/", async (req, res) => {
       const term = location.trim();
       $and.push({
         $or: [
+          { location: { $regex: term, $options: "i" } },
           { city: { $regex: term, $options: "i" } },
           { state: { $regex: term, $options: "i" } },
           { country: { $regex: term, $options: "i" } },
@@ -78,9 +76,6 @@ router.get("/", async (req, res) => {
     };
 
     addRegexFilter("primaryTrade", trade);
-    addRegexFilter("country", country);
-    addRegexFilter("state", state);
-    addRegexFilter("city", city);
     addRegexFilter("availability", availability);
 
     if (skill && typeof skill === "string" && skill.trim()) {
@@ -138,7 +133,6 @@ router.get("/", async (req, res) => {
 // Contact info is only shown if the logged-in client has an accepted request
 // =========================
 router.get("/:id", async (req, res) => {
-  console.log("USING PROFESSIONAL ROUTE");
   try {
     const professional = await User.findById(req.params.id).select(
       PUBLIC_FIELDS
@@ -253,12 +247,6 @@ router.get("/:id", async (req, res) => {
         source: "public_directory",
       }).catch((err) => console.error("PROFILE VIEW RECORD ERROR:", err));
     }
-
-    console.log({
-      hasResume,
-      hasContact,
-      showContact,
-    });
 
     res.json(result);
   } catch (err) {

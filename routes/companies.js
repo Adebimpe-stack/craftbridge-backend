@@ -428,9 +428,7 @@ router.post("/:id/invite", auth, async (req, res) => {
         expiryDate: invitation.expiresAt.toLocaleDateString(),
       });
 
-      if (emailResult.success) {
-        console.log("Invitation email sent successfully to:", email);
-      } else {
+      if (!emailResult.success) {
         console.error("Failed to send invitation email:", emailResult.error);
       }
     } catch (emailError) {
@@ -728,7 +726,6 @@ router.post("/:id/invitations/:invitationId/resend", auth, async (req, res) => {
       });
 
       if (emailResult.success) {
-        console.log("Invitation email resent successfully to:", invitation.email);
         res.json({
           message: "Invitation email resent successfully",
           messageId: emailResult.messageId

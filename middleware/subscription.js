@@ -40,7 +40,7 @@ const subscription = async (req, res, next) => {
     next();
 
   } catch (err) {
-    console.log(err);
+    console.error("Subscription check error:", err);
     res.status(500).json({ message: "Subscription check failed" });
   }
 };

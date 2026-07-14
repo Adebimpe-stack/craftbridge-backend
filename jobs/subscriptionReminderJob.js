@@ -76,15 +76,9 @@ const subscriptionReminderJob = () => {
               text: `Hi ${name}, your subscription has expired. Your account has been switched to free plan. Please renew to regain access.`
             });
           }
-
-          console.log(`Company downgraded: ${company.companyName || company._id}`);
         }
       }
-
-      console.log("Subscription cron completed");
-
     } catch (err) {
-      console.log("Cron error:", err.message);
     }
   });
 };

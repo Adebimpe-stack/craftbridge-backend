@@ -35,9 +35,7 @@ router.post("/payments/paystack/init", auth, async (req, res) => {
       authorization_url: response.data.data.authorization_url
     });
 
-  } catch (err) {
-    console.log(err.response?.data || err.message);
-    res.status(500).json({ message: "Payment init failed" });
+  } catch (err) {    res.status(500).json({ message: "Payment init failed" });
   }
 });
 
@@ -84,9 +82,7 @@ router.get("/payments/paystack/verify/:reference", auth, async (req, res) => {
       subscriptionExpiry: expiry,
     });
 
-  } catch (err) {
-    console.log("VERIFY ERROR:", err.response?.data || err.message);
-    res.status(500).json({ message: "Payment verification failed. Please contact support." });
+  } catch (err) {    res.status(500).json({ message: "Payment verification failed. Please contact support." });
   }
 });
 

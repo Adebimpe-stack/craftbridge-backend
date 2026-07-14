@@ -131,8 +131,7 @@ router.get(
       });
 
     } catch (error) {
-
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message:
@@ -204,7 +203,7 @@ router.get("/verification-status", protect, async (req, res) => {
       canUpload: !["pending", "verified"].includes(status),
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -265,7 +264,7 @@ router.post("/verification-resubmit", protect, async (req, res) => {
       statusLabel: newStatus.replace("_", " "),
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -507,10 +506,7 @@ router.put(
 
     } catch (error) {
 
-      console.log(
-        "UPLOAD ERROR:",
-        error
-      );
+      console.error("UPLOAD ERROR:", error);
 
       res.status(500).json({
 
@@ -587,7 +583,7 @@ router.delete(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
 
@@ -645,7 +641,7 @@ router.delete(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
 
@@ -702,7 +698,7 @@ router.get(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
 
@@ -762,8 +758,7 @@ router.put(
       res.json({ message: `Employer ${status} successfully` });
 
     } catch (error) {
-
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message: "Server error",
@@ -822,7 +817,7 @@ router.get(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
 
@@ -866,8 +861,7 @@ router.get(
       res.json(talent);
 
     } catch (error) {
-
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message:
@@ -968,8 +962,7 @@ router.put(
       });
 
     } catch (error) {
-
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message: "Server error",

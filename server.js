@@ -128,7 +128,7 @@ mongoose.connection.on("disconnected", () => {
 
 mongoose.connection.on("error", (err) => {
   dbReady = false;
-  console.log("MongoDB connection error:", err.message);
+  console.error("MongoDB connection error:", err.message);
 });
 
 // Retry connect with exponential backoff
@@ -145,13 +145,13 @@ async function connectWithRetry(attempt = 1) {
       family: 4, // Force IPv4 — avoids EAI_AGAIN on some VPS DNS configs
     });
   } catch (err) {
-    console.log(`MongoDB connect attempt ${attempt} failed: ${err.message}`);
+    console.error(`MongoDB connect attempt ${attempt} failed: ${err.message}`);
     if (attempt < maxAttempts) {
       const delay = Math.min(baseDelay * attempt, 30000);
       console.log(`Retrying in ${delay / 1000}s...`);
       setTimeout(() => connectWithRetry(attempt + 1), delay);
     } else {
-      console.log("MongoDB: max retry attempts reached. Server will respond with 503 until DB reconnects.");
+      console.error("MongoDB: max retry attempts reached. Server will respond with 503 until DB reconnects.");
     }
   }
 }

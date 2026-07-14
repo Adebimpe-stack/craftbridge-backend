@@ -58,7 +58,7 @@ app.get("/", (req, res) => {
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 /* =========================
    CRON JOB (SUBSCRIPTION REMINDERS + AUTO DISABLE)

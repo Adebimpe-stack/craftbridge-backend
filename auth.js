@@ -47,10 +47,7 @@ module.exports =
 
     } catch (error) {
 
-      console.log(
-        "AUTH ERROR:",
-        error
-      );
+      console.error("AUTH ERROR:", error);
 
       return res.status(401).json({
         message:

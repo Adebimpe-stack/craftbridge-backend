@@ -207,7 +207,7 @@ res.status(201).json(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message:
@@ -253,7 +253,7 @@ router.get(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message:
@@ -297,7 +297,7 @@ router.get(
 
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message:
@@ -388,7 +388,7 @@ router.put(
 
 } catch (error) {
 
-  console.log(error);
+  console.error(error);
 
   res.status(500).json({
     message:
@@ -452,7 +452,7 @@ res.json({
 
 } catch (error) {
 
-  console.log(error);
+  console.error(error);
 
   res.status(500).json({
     message:
@@ -497,7 +497,7 @@ router.post("/:id/close", auth, async (req, res) => {
     res.json({ message: "Job closed successfully" });
 
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -540,7 +540,7 @@ router.post(
       res.json({ message: "Job reopened successfully" });
 
     } catch (error) {
-      console.log(error);
+      console.error(error);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -604,7 +604,7 @@ res.json({
 
 } catch (error) {
 
-  console.log(error);
+  console.error(error);
 
   res.status(500).json({
     message:
@@ -701,7 +701,7 @@ await application.save();
     });
     } catch (error) {
 
-      console.log(error);
+      console.error(error);
 
       res.status(500).json({
         message: "Server error",
@@ -748,7 +748,7 @@ router.get(
       res.json(applications);
 
     } catch (error) {
-      console.log(error);
+      console.error(error);
       res.status(500).json({ message: "Server error" });
     }
   }
