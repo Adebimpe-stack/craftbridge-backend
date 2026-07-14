@@ -6,6 +6,7 @@ const Company = require("../models/Company");
 const ServiceRequest = require("../models/ServiceRequest");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const { isPubliclyEligible } = require("../utils/professionalRanking");
+const { getProfileViewAnalytics } = require("../services/profileViewService");
 
 // =========================
 // HELPERS
@@ -171,7 +172,7 @@ router.get("/professional", auth, async (req, res) => {
 
     const professionalId = user._id;
 
-    const [incoming, accepted, completed, completion] = await Promise.all([
+    const [incoming, accepted, completed, completion, profileViews] = await Promise.all([
       ServiceRequest.countDocuments({ professional: professionalId }),
       ServiceRequest.countDocuments({
         professional: professionalId,
@@ -182,6 +183,7 @@ router.get("/professional", auth, async (req, res) => {
         status: "completed",
       }),
       calculateProfessionalCompletion(user),
+      getProfileViewAnalytics(professionalId),
     ]);
 
     res.json({
@@ -191,6 +193,7 @@ router.get("/professional", auth, async (req, res) => {
         completed,
       },
       profileCompletion: completion,
+      profileViews,
       isPubliclyEligible: isPubliclyEligible(user),
     });
   } catch (err) {

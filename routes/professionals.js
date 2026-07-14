@@ -7,6 +7,10 @@ const {
   buildPublicDirectoryRankingPipeline,
   buildPublicDirectoryEligibilityMatch,
 } = require("../utils/professionalRanking");
+const {
+  recordProfileView,
+  resolveViewerFromRequest,
+} = require("../services/profileViewService");
 
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
@@ -88,6 +92,23 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Professional not found" });
     }
 
+    // Decode the viewer once so it can be reused for contact unlocking and
+    // profile view analytics.
+    let viewer = null;
+    const authHeader = req.header("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const viewerId = decoded.user?.id || decoded.id;
+        if (viewerId) {
+          viewer = await User.findById(viewerId).select("_id role companyId");
+        }
+      } catch (e) {
+        // token invalid — remain a guest viewer
+      }
+    }
+
     const result = professional.toObject();
 
     // Preserve whether sensitive data exists before we strip it
@@ -106,36 +127,26 @@ router.get("/:id", async (req, res) => {
     const hasContact = hasPhone || hasEmail;
 
     let showContact = false;
-    const authHeader = req.header("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      try {
-        const token = authHeader.replace("Bearer ", "");
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const clientId = decoded.user?.id || decoded.id;
+    if (viewer) {
+      const clientId = viewer._id;
+      const companyId = viewer.companyId;
 
-        // Unlock by client-user relationship or by company relationship
-        const client = await User.findById(clientId).select("companyId");
-        const companyId = client?.companyId;
+      const acceptedRequests = await ServiceRequest.find({
+        professional: req.params.id,
+        status: { $in: ["accepted", "completed"] },
+      }).populate("client", "companyId");
 
-        const acceptedRequests = await ServiceRequest.find({
-          professional: req.params.id,
-          status: { $in: ["accepted", "completed"] },
-        }).populate("client", "companyId");
+      const hasUnlock = acceptedRequests.some((r) => {
+        if (String(r.client?._id) === String(clientId)) return true;
+        if (!companyId) return false;
+        return (
+          String(r.companyId) === String(companyId) ||
+          String(r.client?.companyId) === String(companyId)
+        );
+      });
 
-        const hasUnlock = acceptedRequests.some((r) => {
-          if (String(r.client?._id) === String(clientId)) return true;
-          if (!companyId) return false;
-          return (
-            String(r.companyId) === String(companyId) ||
-            String(r.client?.companyId) === String(companyId)
-          );
-        });
-
-        if (hasUnlock) {
-          showContact = true;
-        }
-      } catch (e) {
-        // token invalid — keep showContact false
+      if (hasUnlock) {
+        showContact = true;
       }
     }
 
@@ -154,6 +165,25 @@ router.get("/:id", async (req, res) => {
     result.hasPhone = hasPhone;
     result.hasEmail = hasEmail;
     result.showContact = showContact;
+
+    // Record the profile view asynchronously; exclude self-views, admin views,
+    // and other professional views. Only guest and employer/company views count
+    // toward engagement analytics. Duplicate refreshes within the cooldown window
+    // are dropped.
+    const isSelfView = viewer && String(viewer._id) === String(professional._id);
+    const isJobSeekerView = viewer && viewer.role === "jobseeker";
+    const isAdminView = viewer && viewer.role === "admin";
+    if (!isSelfView && !isJobSeekerView && !isAdminView) {
+      const viewerInfo = resolveViewerFromRequest(viewer);
+      recordProfileView({
+        professionalId: professional._id,
+        viewerType: viewerInfo.viewerType,
+        viewerId: viewerInfo.viewerId,
+        viewerIp: req.ip || req.connection?.remoteAddress || null,
+        userAgent: req.headers["user-agent"] || null,
+        source: "public_directory",
+      }).catch((err) => console.error("PROFILE VIEW RECORD ERROR:", err));
+    }
 
     console.log({
       hasResume,
