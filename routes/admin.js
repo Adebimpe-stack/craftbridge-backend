@@ -9,6 +9,10 @@ const Job = require("../models/Job");
 const Company = require("../models/Company");
 const VerificationLog = require("../models/VerificationLog");
 const { activateSubscription, deactivateSubscription } = require("../utils/syncSubscription");
+const {
+  isPubliclyEligible,
+  getPublicDirectoryIneligibilityReasons,
+} = require("../utils/professionalRanking");
 
 // =======================
 // GET ALL USERS
@@ -657,7 +661,17 @@ router.get("/workers", auth, requireRole("admin"), async (req, res) => {
     const workers = await User.find({ role: "jobseeker" })
       .select("-password")
       .sort({ createdAt: -1 });
-    res.json(workers);
+
+    const enriched = workers.map((w) => {
+      const obj = w.toObject();
+      const profileCompletion = calculateWorkerCompletion(w);
+      obj.profileCompletion = profileCompletion;
+      obj.isPubliclyEligible = isPubliclyEligible(w);
+      obj.publicDirectoryStatusReasons = getPublicDirectoryIneligibilityReasons(w);
+      return obj;
+    });
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1137,6 +1151,8 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
           }
         : null,
       profileCompletion,
+      isPubliclyEligible: !isEmployer ? isPubliclyEligible(user) : null,
+      publicDirectoryStatusReasons: !isEmployer ? getPublicDirectoryIneligibilityReasons(user) : null,
       documents,
       verificationHistory: statusLogs,
       adminNotes,

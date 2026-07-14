@@ -3,8 +3,11 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
+const {
+  buildPublicDirectoryRankingPipeline,
+  buildPublicDirectoryEligibilityMatch,
+} = require("../utils/professionalRanking");
 
-const LIST_FIELDS = "_id name profilePicture primaryTrade category location city state country workerVerificationStatus availability experienceYears skills";
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
 
@@ -14,13 +17,40 @@ const PUBLIC_FIELDS =
 // =========================
 router.get("/", async (req, res) => {
   try {
-    const professionals = await User.find({
+    const matchStage = {
       role: "jobseeker",
-      accountStatus: { $nin: ["suspended", "deactivated"] },
+      // Only active accounts appear publicly. Treat missing accountStatus as
+      // active because older documents rely on the schema default.
+      accountStatus: { $in: ["active", null] },
       workerVerificationStatus: { $nin: ["rejected"] },
-    })
-      .select(LIST_FIELDS)
-      .sort({ createdAt: -1 });
+      ...buildPublicDirectoryEligibilityMatch(),
+    };
+
+    const pipeline = buildPublicDirectoryRankingPipeline(matchStage);
+
+    // Only expose public listing fields and the score used for ranking.
+    pipeline.push({
+      $project: {
+        _id: 1,
+        name: 1,
+        profilePicture: 1,
+        profileImage: 1,
+        primaryTrade: 1,
+        category: 1,
+        location: 1,
+        city: 1,
+        state: 1,
+        country: 1,
+        workerVerificationStatus: 1,
+        isVerified: 1,
+        availability: 1,
+        experienceYears: 1,
+        skills: 1,
+        profileCompletionScore: 1,
+      },
+    });
+
+    const professionals = await User.aggregate(pipeline);
 
     res.json({ professionals });
   } catch (err) {

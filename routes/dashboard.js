@@ -5,6 +5,7 @@ const User = require("../models/User");
 const Company = require("../models/Company");
 const ServiceRequest = require("../models/ServiceRequest");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
+const { isPubliclyEligible } = require("../utils/professionalRanking");
 
 // =========================
 // HELPERS
@@ -28,11 +29,12 @@ function calculateProfessionalCompletion(user) {
     !!(user.profilePicture || user.profileImage),
     !!(user.primaryTrade),
     !!(user.bio || user.professionalSummary),
-    !!(user.location || user.city || user.state),
+    !!(user.location || user.city || user.state || user.country),
     !!(user.phone),
     Array.isArray(user.skills) && user.skills.length > 0,
     typeof user.experienceYears === "number" && user.experienceYears > 0,
-    !!(user.resume || user.resumeUrl || user.resumeText),
+    !!(user.resume || user.resumeUrl || user.resumeText || user.resumeData),
+    Array.isArray(user.certifications) && user.certifications.length > 0,
   ];
 
   const completed = checks.filter(Boolean).length;
@@ -189,6 +191,7 @@ router.get("/professional", auth, async (req, res) => {
         completed,
       },
       profileCompletion: completion,
+      isPubliclyEligible: isPubliclyEligible(user),
     });
   } catch (err) {
     console.error("PROFESSIONAL DASHBOARD ERROR:", err);
