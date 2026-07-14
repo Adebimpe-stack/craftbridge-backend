@@ -69,6 +69,9 @@ const employerNoteRoutes =
 const dashboardRoutes =
   require("./routes/dashboard");
 
+const notificationRoutes =
+  require("./routes/notifications");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -221,6 +224,8 @@ app.use("/api/service-requests", serviceRequestRoutes);
 app.use("/api/employer-notes", employerNoteRoutes);
 
 app.use("/api/dashboard", dashboardRoutes);
+
+app.use("/api/notifications", notificationRoutes);
 
 app.use("/api/admin", adminRoutes);
 

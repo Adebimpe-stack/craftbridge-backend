@@ -14,6 +14,8 @@ const Company = require("../models/Company");
 const User =
   require("../models/User");
 
+const { createNotification } = require("../services/notificationService");
+
 const auth =
   require("../middleware/auth");
 
@@ -681,10 +683,22 @@ const application =
 
 await application.save();
 
-res.json({
-  message:
-    "Application submitted successfully",
-});
+    // Notify the employer internally (non-blocking)
+    createNotification({
+      recipientId: job.createdBy,
+      type: "job_application",
+      data: {
+        jobId: job._id,
+        jobTitle: job.title,
+        applicantId: user._id,
+        applicationId: application._id,
+      },
+    }).catch((err) => console.error("JOB APPLICATION NOTIFICATION ERROR:", err));
+
+    res.json({
+      message:
+        "Application submitted successfully",
+    });
     } catch (error) {
 
       console.log(error);

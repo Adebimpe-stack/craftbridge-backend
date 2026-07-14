@@ -13,6 +13,10 @@ const {
   isPubliclyEligible,
   getPublicDirectoryIneligibilityReasons,
 } = require("../utils/professionalRanking");
+const {
+  createNotification,
+  notifyProfileVisible,
+} = require("../services/notificationService");
 
 // =======================
 // GET ALL USERS
@@ -714,6 +718,21 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
       reason: reason || "",
       admin: req.user._id,
     });
+
+    // Notify the worker of verification status change (non-blocking)
+    createNotification({
+      recipientId: user._id,
+      type: "verification_status_change",
+      data: { status, previousStatus },
+    }).catch((err) => console.error("WORKER VERIFICATION NOTIFICATION ERROR:", err));
+
+    // If the status change made the profile publicly visible, notify the worker.
+    if (status === "verified") {
+      const updatedUser = await User.findById(user._id);
+      notifyProfileVisible(updatedUser, user).catch((err) =>
+        console.error("PROFILE VISIBLE NOTIFICATION ERROR:", err)
+      );
+    }
 
     res.json({ message: `Worker ${status} successfully` });
   } catch (err) {

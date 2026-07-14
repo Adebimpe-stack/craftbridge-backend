@@ -1,4 +1,5 @@
 const ProfileView = require("../models/ProfileView");
+const { createNotification } = require("./notificationService");
 
 // Prevent duplicate refreshes from the same viewer/IP within this window.
 const VIEW_COOLDOWN_MINUTES = 5;
@@ -54,6 +55,17 @@ async function recordProfileView({
     userAgent,
     source,
   });
+
+  // Notify professionals at view milestones (e.g., every 50 views).
+  // This is intentionally lightweight and deterministic so it does not spam.
+  const totalViews = await ProfileView.countDocuments({ professional: professionalId });
+  if (totalViews > 0 && totalViews % 50 === 0) {
+    createNotification({
+      recipientId: professionalId,
+      type: "profile_activity",
+      data: { viewCount: totalViews },
+    }).catch((err) => console.error("PROFILE ACTIVITY NOTIFICATION ERROR:", err));
+  }
 
   return true;
 }

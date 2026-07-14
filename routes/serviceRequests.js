@@ -6,6 +6,7 @@ const ServiceRequest = require("../models/ServiceRequest");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const sendEmail = require("../utils/sendEmail");
+const { createNotification } = require("../services/notificationService");
 
 // =========================
 // CLIENT: GET SERVICE REQUEST LIMITS
@@ -116,7 +117,17 @@ router.post("/", auth, subscription, async (req, res) => {
     }
     await client.save();
 
-    // Notify professional by email (non-blocking)
+    // Notify professional internally and by email (non-blocking)
+    createNotification({
+      recipientId: professionalId,
+      type: "service_request",
+      data: {
+        serviceRequestId: serviceRequest._id,
+        serviceType,
+        clientId: req.user._id,
+      },
+    }).catch((err) => console.error("SERVICE REQUEST NOTIFICATION ERROR:", err));
+
     sendEmail({
       to: professional.email,
       subject: "New Service Request on CraftBridge",
@@ -239,6 +250,17 @@ router.put("/:id/status", auth, async (req, res) => {
     const statusLabels = { accepted: "Accepted", declined: "Declined", completed: "Completed" };
 
     if (status === "accepted" && previousStatus !== "accepted") {
+      createNotification({
+        recipientId: request.client._id,
+        type: "service_request_accepted",
+        data: {
+          serviceRequestId: request._id,
+          serviceType: request.serviceType,
+          professionalId: request.professional._id,
+          professionalName: request.professional.name,
+        },
+      }).catch((err) => console.error("SERVICE REQUEST ACCEPT NOTIFICATION ERROR:", err));
+
       const acceptedDate = new Date().toLocaleDateString("en-US", {
         weekday: "long",
         year: "numeric",
