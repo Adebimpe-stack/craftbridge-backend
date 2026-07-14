@@ -21,6 +21,20 @@ const PUBLIC_FIELDS =
 // =========================
 router.get("/", async (req, res) => {
   try {
+    const {
+      verified,
+      trade,
+      skill,
+      location,
+      country,
+      state,
+      city,
+      minExperience,
+      availability,
+      emergency,
+      language,
+    } = req.query;
+
     const matchStage = {
       role: "jobseeker",
       // Only active accounts appear publicly. Treat missing accountStatus as
@@ -29,6 +43,61 @@ router.get("/", async (req, res) => {
       workerVerificationStatus: { $nin: ["rejected"] },
       ...buildPublicDirectoryEligibilityMatch(),
     };
+
+    const $and = [];
+
+    if (verified === "true" || verified === "1") {
+      $and.push({
+        $or: [
+          { workerVerificationStatus: "verified" },
+          { isVerified: true },
+        ],
+      });
+      delete matchStage.workerVerificationStatus;
+    }
+
+    if (location && typeof location === "string" && location.trim()) {
+      const term = location.trim();
+      $and.push({
+        $or: [
+          { city: { $regex: term, $options: "i" } },
+          { state: { $regex: term, $options: "i" } },
+          { country: { $regex: term, $options: "i" } },
+        ],
+      });
+    }
+
+    if ($and.length > 0) {
+      matchStage.$and = $and;
+    }
+
+    const addRegexFilter = (field, value) => {
+      if (value && typeof value === "string" && value.trim()) {
+        matchStage[field] = { $regex: value.trim(), $options: "i" };
+      }
+    };
+
+    addRegexFilter("primaryTrade", trade);
+    addRegexFilter("country", country);
+    addRegexFilter("state", state);
+    addRegexFilter("city", city);
+    addRegexFilter("availability", availability);
+
+    if (skill && typeof skill === "string" && skill.trim()) {
+      matchStage.skills = { $elemMatch: { $regex: skill.trim(), $options: "i" } };
+    }
+
+    if (language && typeof language === "string" && language.trim()) {
+      matchStage.languages = { $elemMatch: { $regex: language.trim(), $options: "i" } };
+    }
+
+    if (minExperience && !isNaN(Number(minExperience))) {
+      matchStage.experienceYears = { $gte: Number(minExperience) };
+    }
+
+    if (emergency === "true" || emergency === "1") {
+      matchStage.emergencyService = true;
+    }
 
     const pipeline = buildPublicDirectoryRankingPipeline(matchStage);
 
