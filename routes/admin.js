@@ -8,6 +8,7 @@ const User = require("../models/User");
 const Job = require("../models/Job");
 const Company = require("../models/Company");
 const VerificationLog = require("../models/VerificationLog");
+const BulkEmailHistory = require("../models/BulkEmailHistory");
 const { activateSubscription, deactivateSubscription } = require("../utils/syncSubscription");
 const {
   isPubliclyEligible,
@@ -17,6 +18,52 @@ const {
   createNotification,
   notifyProfileVisible,
 } = require("../services/notificationService");
+const sendEmail = require("../utils/sendEmail");
+
+let bulkEmailJobRunning = false;
+
+const RECIPIENT_GROUPS = {
+  all_users: { label: "All Users", filter: {} },
+  all_professionals: { label: "All Professionals", filter: { role: "jobseeker" } },
+  all_employers: { label: "All Employers", filter: { role: "employer" } },
+  verified_professionals: {
+    label: "Verified Professionals",
+    filter: { role: "jobseeker", $or: [{ workerVerificationStatus: "verified" }, { isVerified: true }] },
+  },
+  pending_worker_verification: {
+    label: "Pending Worker Verification",
+    filter: { role: "jobseeker", workerVerificationStatus: "pending" },
+  },
+  verified_businesses: {
+    label: "Verified Businesses",
+    filter: { role: "employer", $or: [{ verificationStatus: "verified" }, { isCompanyVerified: true }] },
+  },
+  pending_business_verification: {
+    label: "Pending Business Verification",
+    filter: { role: "employer", verificationStatus: "pending" },
+  },
+  active_subscribers: {
+    label: "Active Subscribers",
+    filter: { $or: [{ subscriptionActive: true }, { "subscription.isActive": true }] },
+  },
+  inactive_subscribers: {
+    label: "Inactive Subscribers",
+    filter: {
+      $and: [
+        { $or: [{ subscriptionPlan: { $ne: "" } }, { "subscription.plan": { $ne: "" } }] },
+        { $nor: [{ subscriptionActive: true }, { "subscription.isActive": true }] },
+      ],
+    },
+  },
+  free_plan_users: {
+    label: "Free Plan Users",
+    filter: { subscriptionPlan: "", "subscription.plan": "" },
+  },
+  paid_plan_users: {
+    label: "Paid Plan Users",
+    filter: { $or: [{ subscriptionPlan: { $ne: "" } }, { "subscription.plan": { $ne: "" } }] },
+  },
+};
 
 // =======================
 // GET ALL USERS
@@ -46,6 +93,146 @@ router.get("/users", auth, requireRole("admin"), async (req, res) => {
     res.json(enriched);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET BULK EMAIL RECIPIENT GROUP
+// =======================
+router.get("/users/recipient-groups/:group", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const group = RECIPIENT_GROUPS[req.params.group];
+    if (!group) {
+      return res.status(400).json({ message: "Invalid recipient group." });
+    }
+
+    const users = await User.find(group.filter).select("_id");
+    res.json({ group: req.params.group, label: group.label, userIds: users.map((user) => user._id) });
+  } catch (err) {
+    console.error("RECIPIENT GROUP ERROR:", err);
+    res.status(500).json({ message: "Failed to load recipient group." });
+  }
+});
+
+// =======================
+// GET BULK EMAIL HISTORY
+// =======================
+router.get("/users/bulk-email-history", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { search = "", group = "", date = "" } = req.query;
+    const filter = {};
+
+    if (search.trim()) {
+      filter.subject = { $regex: search.trim(), $options: "i" };
+    }
+    if (group.trim()) {
+      filter.recipientGroup = group.trim();
+    }
+    if (date.trim()) {
+      const start = new Date(`${date}T00:00:00.000Z`);
+      const end = new Date(`${date}T23:59:59.999Z`);
+      if (!Number.isNaN(start.getTime())) {
+        filter.createdAt = { $gte: start, $lte: end };
+      }
+    }
+
+    const history = await BulkEmailHistory.find(filter)
+      .populate("sentBy", "name email")
+      .sort({ createdAt: -1 });
+    res.json(history);
+  } catch (err) {
+    console.error("BULK EMAIL HISTORY ERROR:", err);
+    res.status(500).json({ message: "Failed to load email history." });
+  }
+});
+
+// =======================
+// BULK EMAIL SELECTED USERS
+// =======================
+router.post("/users/bulk-email", auth, requireRole("admin"), async (req, res) => {
+  if (bulkEmailJobRunning) {
+    return res.status(409).json({ message: "A bulk email job is already running. Please wait for it to finish." });
+  }
+
+  bulkEmailJobRunning = true;
+  try {
+    const { userIds, subject, message, recipientGroup = "Custom Selection" } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: "Please select at least one user." });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ message: "Subject is required." });
+    }
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: "Message is required." });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } }).select("email name");
+    if (users.length === 0) {
+      return res.status(404).json({ message: "No users found for the selected IDs." });
+    }
+
+    const escapeHtml = (value) =>
+      value.replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]);
+    const emailMessage = escapeHtml(message.trim()).replace(/\n/g, "<br/>");
+
+    const results = await Promise.all(
+      users.map(async (user) => ({
+        user,
+        delivery: await sendEmail({
+          to: user.email,
+          subject: subject.trim(),
+          html: `
+            <div style="font-family: Inter, sans-serif; line-height: 1.6; color: #1e293b;">
+              <p>Hello ${escapeHtml(user.name || "there")},</p>
+              <p>${emailMessage}</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">
+                This message was sent by the CraftBridge admin team.
+              </p>
+            </div>
+          `,
+        }),
+      }))
+    );
+
+    const sent = results.filter(({ delivery }) => delivery).length;
+    const failedRecipients = results
+      .filter(({ delivery }) => !delivery)
+      .map(({ user }) => ({ name: user.name || "Unknown user", email: user.email }));
+    const failed = failedRecipients.length;
+
+    const history = await BulkEmailHistory.create({
+      subject: subject.trim(),
+      message: message.trim(),
+      recipientGroup,
+      numberSelected: users.length,
+      numberSent: sent,
+      numberFailed: failed,
+      failedRecipients,
+      sentBy: req.user._id,
+    });
+
+    res.json({
+      success: true,
+      message: `Email sent to ${sent} user${sent === 1 ? "" : "s"}${failed > 0 ? `, ${failed} failed` : ""}.`,
+      sent,
+      failed,
+      failedRecipients,
+      historyId: history._id,
+    });
+  } catch (err) {
+    console.error("BULK EMAIL ERROR:", err);
+    res.status(500).json({ message: "Failed to send bulk email." });
+  } finally {
+    bulkEmailJobRunning = false;
   }
 });
 

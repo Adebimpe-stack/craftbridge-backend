@@ -50,8 +50,10 @@ const sendEmail =
 
         });
 
+      return info;
     } catch (error) {
       console.error("EMAIL ERROR:", error);
+      return null;
     }
 
   };
