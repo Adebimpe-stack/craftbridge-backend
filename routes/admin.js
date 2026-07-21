@@ -836,22 +836,20 @@ router.put("/employers/:id/profile", auth, requireRole("admin"), async (req, res
 // =======================
 router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async (req, res) => {
   try {
-    const allowedFields = [
-      "name",
-      "email",
-      "phone",
-      "companyEmail",
-      "location",
-      "website",
-      "linkedin",
-    ];
+    const userFields = ["name", "email", "phone", "companyEmail", "linkedin"];
+    const companyFields = ["name", "location", "website", "linkedin"];
 
-    const identityUpdates = {};
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) identityUpdates[field] = req.body[field];
+    const userUpdates = {};
+    const companyUpdates = {};
+
+    for (const field of userFields) {
+      if (req.body[field] !== undefined) userUpdates[field] = req.body[field];
+    }
+    for (const field of companyFields) {
+      if (req.body[field] !== undefined) companyUpdates[field] = req.body[field];
     }
 
-    if (Object.keys(identityUpdates).length === 0) {
+    if (Object.keys(userUpdates).length === 0 && Object.keys(companyUpdates).length === 0) {
       return res.status(400).json({ message: "No valid identity/contact fields provided" });
     }
 
@@ -863,26 +861,18 @@ router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async 
       : await Company.findOne({ owner: user._id });
 
     // Update the user identity/contact record
-    Object.assign(user, identityUpdates);
-    await user.save({ validateBeforeSave: false });
-
-    // Mirror public-facing fields to the linked Company record
-    if (company) {
-      const companyUpdates = {};
-      if (identityUpdates.name) companyUpdates.name = identityUpdates.name;
-      if (identityUpdates.phone !== undefined) companyUpdates.phone = identityUpdates.phone;
-      if (identityUpdates.companyEmail !== undefined) companyUpdates.companyEmail = identityUpdates.companyEmail;
-      if (identityUpdates.location !== undefined) companyUpdates.location = identityUpdates.location;
-      if (identityUpdates.website !== undefined) companyUpdates.website = identityUpdates.website;
-      if (identityUpdates.linkedin !== undefined) companyUpdates.linkedin = identityUpdates.linkedin;
-
-      if (Object.keys(companyUpdates).length > 0) {
-        Object.assign(company, companyUpdates);
-        await company.save({ validateBeforeSave: false });
-      }
+    if (Object.keys(userUpdates).length > 0) {
+      Object.assign(user, userUpdates);
+      await user.save({ validateBeforeSave: false });
     }
 
-    res.json({ message: "Identity and contact updated successfully", user });
+    // Update public-facing fields on the linked Company record
+    if (company && Object.keys(companyUpdates).length > 0) {
+      Object.assign(company, companyUpdates);
+      await company.save({ validateBeforeSave: false });
+    }
+
+    res.json({ message: "Identity and contact updated successfully", user, company });
   } catch (err) {
     console.error("employers/:id/identity-contact error:", err.message);
     if (err.code === 11000) {
