@@ -5,7 +5,13 @@ const serviceRequestSchema = new mongoose.Schema(
     professional: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
+    },
+
+    business: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
     },
 
     client: {
