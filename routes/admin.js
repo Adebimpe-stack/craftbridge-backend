@@ -770,6 +770,68 @@ router.put("/employers/:id/business-type", auth, requireRole("admin"), async (re
 });
 
 // =======================
+// UPDATE SERVICE BUSINESS PROFILE (admin edit)
+// =======================
+router.put("/employers/:id/profile", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const allowedFields = [
+      "name",
+      "description",
+      "industry",
+      "companySize",
+      "location",
+      "website",
+      "linkedin",
+      "cacNumber",
+    ];
+
+    const profileUpdates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        profileUpdates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(profileUpdates).length === 0) {
+      return res.status(400).json({ message: "No valid profile fields provided" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Employer not found" });
+
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Apply updates directly to the Company model (the public source of truth)
+    Object.assign(company, profileUpdates);
+    await company.save({ validateBeforeSave: false });
+
+    // Keep the legacy User record in sync for backfilled directory listings
+    const userUpdates = {};
+    if (profileUpdates.name) userUpdates.name = profileUpdates.name;
+    if (profileUpdates.location) userUpdates.location = profileUpdates.location;
+    if (profileUpdates.website) userUpdates.website = profileUpdates.website;
+    if (profileUpdates.linkedin) userUpdates.linkedin = profileUpdates.linkedin;
+    if (profileUpdates.description) userUpdates.bio = profileUpdates.description;
+    if (profileUpdates.companySize) userUpdates.companySize = profileUpdates.companySize;
+
+    if (Object.keys(userUpdates).length > 0) {
+      await User.findByIdAndUpdate(user._id, userUpdates, { runValidators: false });
+    }
+
+    res.json({ message: "Service business profile updated successfully", company });
+  } catch (err) {
+    console.error("employers/:id/profile error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // SUSPEND USER
 // =======================
 router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
