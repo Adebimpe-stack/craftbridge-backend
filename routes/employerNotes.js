@@ -5,6 +5,13 @@ const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
 const Company = require("../models/Company");
 
+const requireBusinessAccount = (req, res, next) => {
+  if (req.user?.role !== "employer") {
+    return res.status(403).json({ message: "Only a business account can perform this action." });
+  }
+  next();
+};
+
 // =========================
 // HELPER: get owner context from current user
 // =========================
@@ -219,7 +226,7 @@ router.post("/:professionalId", auth, async (req, res) => {
 // POST /api/employer-notes/save/:professionalId
 // DELETE /api/employer-notes/save/:professionalId
 // =========================
-router.post("/save/:professionalId", auth, async (req, res) => {
+router.post("/save/:professionalId", auth, requireBusinessAccount, async (req, res) => {
   try {
     const owner = getOwner(req.user);
 
@@ -236,7 +243,7 @@ router.post("/save/:professionalId", auth, async (req, res) => {
   }
 });
 
-router.delete("/save/:professionalId", auth, async (req, res) => {
+router.delete("/save/:professionalId", auth, requireBusinessAccount, async (req, res) => {
   try {
     const owner = getOwner(req.user);
 

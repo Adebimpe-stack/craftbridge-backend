@@ -8,11 +8,18 @@ const Company = require("../models/Company");
 const sendEmail = require("../utils/sendEmail");
 const { createNotification } = require("../services/notificationService");
 
+const requireBusinessAccount = (req, res, next) => {
+  if (req.user?.role !== "employer") {
+    return res.status(403).json({ message: "Only a business account can perform this action." });
+  }
+  next();
+};
+
 // =========================
 // CLIENT: GET SERVICE REQUEST LIMITS
 // GET /api/service-requests/limits
 // =========================
-router.get("/limits", auth, subscription, async (req, res) => {
+router.get("/limits", auth, requireBusinessAccount, subscription, async (req, res) => {
   try {
     const user = req.userData;
 
@@ -39,7 +46,7 @@ router.get("/limits", auth, subscription, async (req, res) => {
 // CLIENT: SUBMIT A SERVICE REQUEST
 // POST /api/service-requests
 // =========================
-router.post("/", auth, subscription, async (req, res) => {
+router.post("/", auth, requireBusinessAccount, subscription, async (req, res) => {
   try {
     const { professionalId, serviceType, description, location, preferredDate, budget } = req.body;
 
