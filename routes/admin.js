@@ -832,6 +832,67 @@ router.put("/employers/:id/profile", auth, requireRole("admin"), async (req, res
 });
 
 // =======================
+// UPDATE SERVICE BUSINESS IDENTITY & CONTACT (admin edit)
+// =======================
+router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const allowedFields = [
+      "name",
+      "email",
+      "phone",
+      "companyEmail",
+      "location",
+      "website",
+      "linkedin",
+    ];
+
+    const identityUpdates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) identityUpdates[field] = req.body[field];
+    }
+
+    if (Object.keys(identityUpdates).length === 0) {
+      return res.status(400).json({ message: "No valid identity/contact fields provided" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Employer not found" });
+
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    // Update the user identity/contact record
+    Object.assign(user, identityUpdates);
+    await user.save({ validateBeforeSave: false });
+
+    // Mirror public-facing fields to the linked Company record
+    if (company) {
+      const companyUpdates = {};
+      if (identityUpdates.name) companyUpdates.name = identityUpdates.name;
+      if (identityUpdates.phone !== undefined) companyUpdates.phone = identityUpdates.phone;
+      if (identityUpdates.companyEmail !== undefined) companyUpdates.companyEmail = identityUpdates.companyEmail;
+      if (identityUpdates.location !== undefined) companyUpdates.location = identityUpdates.location;
+      if (identityUpdates.website !== undefined) companyUpdates.website = identityUpdates.website;
+      if (identityUpdates.linkedin !== undefined) companyUpdates.linkedin = identityUpdates.linkedin;
+
+      if (Object.keys(companyUpdates).length > 0) {
+        Object.assign(company, companyUpdates);
+        await company.save({ validateBeforeSave: false });
+      }
+    }
+
+    res.json({ message: "Identity and contact updated successfully", user });
+  } catch (err) {
+    console.error("employers/:id/identity-contact error:", err.message);
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // SUSPEND USER
 // =======================
 router.put("/users/:id/suspend", auth, requireRole("admin"), async (req, res) => {
