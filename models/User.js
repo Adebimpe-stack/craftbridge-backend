@@ -46,7 +46,9 @@ const userSchema =
         type: String,
         enum: [
           "jobseeker",
-          "employer", "admin"
+          "employer",
+          "customer",
+          "admin"
         ],
         default: "jobseeker",
       },
