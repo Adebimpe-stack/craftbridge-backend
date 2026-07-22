@@ -29,6 +29,7 @@ router.post(
         invitationToken,
         companyType,
         companyName,
+        organizationType,
       } = req.body;
 
       // CHECK EXISTING USER
@@ -115,6 +116,12 @@ router.post(
         await invitation.save();
       } else if (role === "employer") {
         // Regular employer registration creates a new company
+        const validOrgTypes = ["service_business", "employer", "recruitment_agency"];
+        const resolvedOrgType =
+          organizationType && validOrgTypes.includes(organizationType)
+            ? organizationType
+            : "service_business";
+
         const company =
           await Company.create({
 
@@ -130,6 +137,8 @@ router.post(
               user._id,
 
             businessType: companyType || "",
+
+            organizationType: resolvedOrgType,
 
           });
 
