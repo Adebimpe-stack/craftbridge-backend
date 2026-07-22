@@ -1118,7 +1118,7 @@ router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       update,
-      { new: true, runValidators: false }
+      { returnDocument: "after", runValidators: false }
     ).select("-password");
 
     res.json({ message: "Worker profile updated", user: updatedUser });

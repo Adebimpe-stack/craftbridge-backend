@@ -211,7 +211,7 @@ router.post("/:professionalId", auth, async (req, res) => {
     const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
       update,
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: "after", upsert: true, runValidators: true }
     );
 
     res.json({ message: "Saved.", note: relationship });
@@ -233,7 +233,7 @@ router.post("/save/:professionalId", auth, requireBusinessAccount, async (req, r
     const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
       { isSaved: true },
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: "after", upsert: true, runValidators: true }
     );
 
     res.json({ message: "Professional saved.", note: relationship });
@@ -250,7 +250,7 @@ router.delete("/save/:professionalId", auth, requireBusinessAccount, async (req,
     const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
       { isSaved: false },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!relationship) {
@@ -318,7 +318,7 @@ router.put("/rating/:professionalId", auth, async (req, res) => {
     const relationship = await EmployerProfessionalNote.findOneAndUpdate(
       { ...owner, professional: req.params.professionalId },
       { rating: numericRating },
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: "after", upsert: true, runValidators: true }
     );
 
     res.json({ message: "Rating saved.", note: relationship });
