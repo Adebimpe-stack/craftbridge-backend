@@ -111,6 +111,12 @@ const companySchema = new mongoose.Schema(
       default: "employer",
     },
 
+    organizationType: {
+      type: String,
+      enum: ["service_business", "employer", "recruitment_agency"],
+      default: "service_business",
+    },
+
     location: {
       type: String,
     },

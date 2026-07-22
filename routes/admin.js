@@ -1453,6 +1453,7 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
             industry: company.industry || "",
             companySize: company.companySize || "",
             businessType: company.businessType || "",
+            organizationType: company.organizationType || "service_business",
             location: company.location || "",
             description: company.description || "",
             website: company.website || "",
@@ -1566,6 +1567,40 @@ router.post("/verification/:id/note", auth, requireRole("admin"), async (req, re
 
     res.json({ message: "Note added", log });
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// UPDATE ORGANIZATION TYPE
+// Allows admins to correct or change an organization's classification.
+// =======================
+router.put("/employers/:id/organization-type", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { organizationType } = req.body;
+    const validTypes = ["service_business", "employer", "recruitment_agency"];
+
+    if (!organizationType || !validTypes.includes(organizationType)) {
+      return res.status(400).json({ message: "Valid organizationType is required" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    company.organizationType = organizationType;
+    await company.save({ validateBeforeSave: false });
+
+    res.json({ message: "Organization type updated successfully", organizationType });
+  } catch (err) {
+    console.error("employers/:id/organization-type error:", err.message);
     res.status(500).json({ message: err.message });
   }
 });

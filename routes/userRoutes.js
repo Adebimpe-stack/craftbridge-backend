@@ -111,6 +111,7 @@ router.get(
             cacNumber: company.cacNumber || "",
             businessType: company.businessType || "",
             companyType: company.businessType || "",
+            organizationType: company.organizationType || "service_business",
             verificationStatus: company.verificationStatus || "none",
             isCompanyVerified: company.verificationStatus === "verified",
             documentsApproved: company.documentsApproved || false,

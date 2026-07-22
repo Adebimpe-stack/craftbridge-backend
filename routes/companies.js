@@ -26,6 +26,7 @@ const normalizeCompany = (company) => ({
   isVerified: company.verificationStatus === "verified",
   owner: company.owner || null,
   createdAt: company.createdAt,
+  organizationType: company.organizationType || "service_business",
 });
 
 const optionalAuth = async (req, res, next) => {
@@ -56,17 +57,40 @@ const optionalAuth = async (req, res, next) => {
 // =========================
 router.get("/", async (req, res) => {
   try {
+    const requestedType = req.query.type;
+    const validOrgTypes = ["service_business", "employer", "recruitment_agency"];
+    const typeFilter =
+      requestedType && validOrgTypes.includes(requestedType)
+        ? requestedType
+        : "service_business";
+
+    // For service_business, also include legacy employer users without a Company record.
+    const includeLegacyEmployerUsers = typeFilter === "service_business";
+
+    const companyQuery = {
+      verificationStatus: "verified",
+      isDeleted: false,
+      isActive: true,
+    };
+
+    if (typeFilter === "service_business") {
+      companyQuery.$or = [
+        { organizationType: "service_business" },
+        { organizationType: { $exists: false } },
+      ];
+    } else {
+      companyQuery.organizationType = typeFilter;
+    }
+
     const [companies, allEmployers] = await Promise.all([
-      Company.find({
-        verificationStatus: "verified",
-        isDeleted: false,
-        isActive: true,
-      }).sort({ createdAt: -1 }).lean(),
-      User.find({
-        role: "employer",
-        verificationStatus: "verified",
-        accountStatus: "active",
-      }).sort({ createdAt: -1 }).lean(),
+      Company.find(companyQuery).sort({ createdAt: -1 }).lean(),
+      includeLegacyEmployerUsers
+        ? User.find({
+            role: "employer",
+            verificationStatus: "verified",
+            accountStatus: "active",
+          }).sort({ createdAt: -1 }).lean()
+        : [],
     ]);
 
     // Build set of company ids and owner ids already covered by Company records
@@ -118,6 +142,7 @@ router.get("/", async (req, res) => {
         verificationStatus: user.verificationStatus || "none",
         owner: user._id,
         createdAt: user.createdAt,
+        organizationType: "service_business",
       }))
       .map((c) => ({ ...c, isEmployerRecord: true }));
 
@@ -189,6 +214,7 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
           verificationStatus: employer.verificationStatus || "none",
           owner: employer._id,
           createdAt: employer.createdAt,
+          organizationType: "service_business",
         };
       } else {
         return res.status(404).json({
