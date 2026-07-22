@@ -145,6 +145,59 @@ router.get(
 );
 
 // ==============================
+// UPDATE OWN COMPANY ORGANIZATION TYPE
+// ==============================
+
+router.put(
+  "/company/organization-type",
+  protect,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.id).select("companyId role");
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!user.companyId) {
+        return res.status(400).json({ message: "No company is linked to this account" });
+      }
+
+      const company = await Company.findById(user.companyId);
+
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+
+      const isOwner = company.owner && company.owner.toString() === user._id.toString();
+      const isAdmin = user.role === "admin";
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ message: "Only company owners or admins can update organization type" });
+      }
+
+      const { organizationType } = req.body;
+      const validTypes = ["service_business", "employer", "recruitment_agency"];
+
+      if (!organizationType || !validTypes.includes(organizationType)) {
+        return res.status(400).json({ message: "Valid organizationType is required" });
+      }
+
+      company.organizationType = organizationType;
+      await company.save({ validateBeforeSave: false });
+
+      res.json({
+        message: "Organization type updated successfully",
+        organizationType: company.organizationType,
+      });
+    } catch (error) {
+      console.error("company/organization-type error:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// ==============================
 // GET CURRENT VERIFICATION STATUS & ADMIN MESSAGE
 // ==============================
 
