@@ -118,6 +118,8 @@ router.get("/", async (req, res) => {
       },
     });
 
+    pipeline.push({ $limit: 100 });
+
     const professionals = await User.aggregate(pipeline);
 
     res.json({ professionals });

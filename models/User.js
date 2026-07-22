@@ -416,6 +416,14 @@ companyRole: {
 
 userSchema.index({ role: 1, createdAt: -1 });
 
+// Indexes for the public professionals directory filters and ranking.
+userSchema.index({ role: 1, accountStatus: 1, workerVerificationStatus: 1 });
+userSchema.index({ primaryTrade: 1 });
+userSchema.index({ availability: 1 });
+userSchema.index({ city: 1, country: 1 });
+userSchema.index({ skills: 1 });
+userSchema.index({ experienceYears: 1 });
+
 module.exports =
   mongoose.model(
     "User",
