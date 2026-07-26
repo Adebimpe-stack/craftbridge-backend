@@ -867,6 +867,20 @@ router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async 
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Employer not found" });
 
+    if (userUpdates.email) {
+      const normalizedEmail = String(userUpdates.email).trim().toLowerCase();
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: user._id },
+      });
+      if (existingUser) {
+        return res.status(409).json({
+          message: "That email is already in use by another account",
+        });
+      }
+      userUpdates.email = normalizedEmail;
+    }
+
     const company = user.companyId
       ? await Company.findById(user.companyId)
       : await Company.findOne({ owner: user._id });
