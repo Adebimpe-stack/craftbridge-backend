@@ -1643,6 +1643,38 @@ router.put("/employers/:id/organization-type", auth, requireRole("admin"), async
 });
 
 // =======================
+// CLEAR STALE POST-VERIFICATION UPDATE FLAGS
+// One-time cleanup for existing accounts that were verified before the
+// approval flow started clearing the flag automatically.
+// =======================
+router.post("/clear-stale-post-verification-flags", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const [userResult, companyResult] = await Promise.all([
+      User.updateMany(
+        {
+          $or: [{ workerVerificationStatus: "verified" }, { isVerified: true }],
+          profileUpdatedAfterVerification: true,
+        },
+        { profileUpdatedAfterVerification: false, profileUpdatedAfterVerificationAt: null }
+      ),
+      Company.updateMany(
+        { verificationStatus: "verified", profileUpdatedAfterVerification: true },
+        { profileUpdatedAfterVerification: false, profileUpdatedAfterVerificationAt: null }
+      ),
+    ]);
+
+    res.json({
+      message: "Stale post-verification update flags cleared",
+      workersUpdated: userResult.modifiedCount,
+      companiesUpdated: companyResult.modifiedCount,
+    });
+  } catch (err) {
+    console.error("clear-stale-post-verification-flags error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // GET VERIFICATION HISTORY
 // =======================
 router.get("/verification/:id/history", auth, requireRole("admin"), async (req, res) => {
