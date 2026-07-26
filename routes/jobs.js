@@ -34,7 +34,6 @@ router.post(
     body("title", "Job title is required").not().isEmpty(),
     body("category", "Category is required").not().isEmpty(),
     body("location", "Location is required").not().isEmpty(),
-    body("salary", "Salary range is required").not().isEmpty(),
     body("type", "Job type is required").not().isEmpty(),
     body("workMode", "Work mode is required").not().isEmpty(),
     body("experienceLevel", "Experience level is required").not().isEmpty(),

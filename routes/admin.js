@@ -3,6 +3,7 @@ const router = express.Router();
 
 const auth = require("../middleware/auth");
 const requireRole = require("../middleware/role");
+const upload = require("../middleware/upload");
 
 const User = require("../models/User");
 const Job = require("../models/Job");
@@ -772,29 +773,38 @@ router.put("/employers/:id/business-type", auth, requireRole("admin"), async (re
 // =======================
 // UPDATE SERVICE BUSINESS PROFILE (admin edit)
 // =======================
-router.put("/employers/:id/profile", auth, requireRole("admin"), async (req, res) => {
-  try {
-    const allowedFields = [
-      "name",
-      "description",
-      "industry",
-      "companySize",
-      "location",
-      "website",
-      "linkedin",
-      "cacNumber",
-    ];
+router.put(
+  "/employers/:id/profile",
+  auth,
+  requireRole("admin"),
+  upload.single("companyLogo"),
+  async (req, res) => {
+    try {
+      const allowedFields = [
+        "name",
+        "description",
+        "industry",
+        "companySize",
+        "location",
+        "website",
+        "linkedin",
+        "cacNumber",
+      ];
 
-    const profileUpdates = {};
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        profileUpdates[field] = req.body[field];
+      const profileUpdates = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          profileUpdates[field] = req.body[field];
+        }
       }
-    }
 
-    if (Object.keys(profileUpdates).length === 0) {
-      return res.status(400).json({ message: "No valid profile fields provided" });
-    }
+      if (req.file) {
+        profileUpdates.logo = req.file.location;
+      }
+
+      if (Object.keys(profileUpdates).length === 0) {
+        return res.status(400).json({ message: "No valid profile fields provided" });
+      }
 
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Employer not found" });
@@ -819,6 +829,7 @@ router.put("/employers/:id/profile", auth, requireRole("admin"), async (req, res
     if (profileUpdates.linkedin) userUpdates.linkedin = profileUpdates.linkedin;
     if (profileUpdates.description) userUpdates.bio = profileUpdates.description;
     if (profileUpdates.companySize) userUpdates.companySize = profileUpdates.companySize;
+    if (req.file) userUpdates.profilePicture = req.file.location;
 
     if (Object.keys(userUpdates).length > 0) {
       await User.findByIdAndUpdate(user._id, userUpdates, { runValidators: false });
@@ -1043,9 +1054,14 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
 // =======================
 // UPDATE WORKER PROFILE (admin edit)
 // =======================
-router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
+router.put(
+  "/workers/:id",
+  auth,
+  requireRole("admin"),
+  upload.single("profilePicture"),
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Worker not found" });
     if (user.role !== "jobseeker") {
       return res.status(400).json({ message: "This endpoint is only for worker profiles" });
@@ -1089,6 +1105,11 @@ router.put("/workers/:id", auth, requireRole("admin"), async (req, res) => {
       }
 
       update[key] = value;
+    }
+
+    if (req.file) {
+      update.profileImage = req.file.location;
+      update.profilePicture = req.file.location;
     }
 
     if (Object.keys(update).length === 0) {

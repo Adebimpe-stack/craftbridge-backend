@@ -12,31 +12,24 @@
  * Professionals who fail this check remain in the database but are hidden
  * from public search results.
  */
+// Required fields a professional must have to appear in the public directory.
+// Optional fields (bio, skills, photo, resume, etc.) only affect completion score.
 const PUBLIC_DIRECTORY_REQUIRED_FIELDS = {
+  hasName: {
+    label: "Name",
+    check: (user) => !!(user.name && String(user.name).trim()),
+  },
   hasPrimaryTrade: {
     label: "Primary Trade",
     check: (user) => !!(user.primaryTrade && String(user.primaryTrade).trim()),
-  },
-  hasAboutMe: {
-    label: "About Me",
-    check: (user) =>
-      !!(
-        (user.bio && String(user.bio).trim()) ||
-        (user.professionalSummary && String(user.professionalSummary).trim()) ||
-        (user.serviceDescription && String(user.serviceDescription).trim()) ||
-        (user.headline && String(user.headline).trim())
-      ),
-  },
-  hasSkills: {
-    label: "Skills",
-    check: (user) => Array.isArray(user.skills) && user.skills.length > 0,
   },
   hasLocation: {
     label: "Location",
     check: (user) =>
       !!(
         (user.city && String(user.city).trim()) ||
-        (user.country && String(user.country).trim())
+        (user.country && String(user.country).trim()) ||
+        (user.location && String(user.location).trim())
       ),
   },
   hasAvailability: {
@@ -84,18 +77,14 @@ function buildPublicDirectoryEligibilityMatch() {
   return {
     $expr: {
       $and: [
+        nonEmptyString("$name"),
         nonEmptyString("$primaryTrade"),
         {
           $or: [
-            nonEmptyString("$bio"),
-            nonEmptyString("$professionalSummary"),
-            nonEmptyString("$serviceDescription"),
-            nonEmptyString("$headline"),
+            nonEmptyString("$city"),
+            nonEmptyString("$country"),
+            nonEmptyString("$location"),
           ],
-        },
-        { $gt: [{ $size: { $ifNull: ["$skills", []] } }, 0] },
-        {
-          $or: [nonEmptyString("$city"), nonEmptyString("$country")],
         },
         nonEmptyString("$availability"),
       ],
