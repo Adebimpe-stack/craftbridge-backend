@@ -680,8 +680,8 @@ router.put("/employers/:id/status", auth, requireRole("admin"), async (req, res)
     let companyUpdate = null;
 
     if (status === "verified") {
-      userUpdate = { isCompanyVerified: true, verificationStatus: "verified", documentsApproved: true, accountStatus: "active", rejectionReason: "", suspensionReason: "" };
-      companyUpdate = { verificationStatus: "verified", documentsApproved: true, rejectionReason: "" };
+      userUpdate = { isCompanyVerified: true, verificationStatus: "verified", documentsApproved: true, accountStatus: "active", rejectionReason: "", suspensionReason: "", profileUpdatedAfterVerification: false, profileUpdatedAfterVerificationAt: null };
+      companyUpdate = { verificationStatus: "verified", documentsApproved: true, rejectionReason: "", profileUpdatedAfterVerification: false, profileUpdatedAfterVerificationAt: null };
     } else if (status === "rejected") {
       userUpdate = { isCompanyVerified: false, verificationStatus: "rejected", documentsApproved: false, accountStatus: "active", rejectionReason: reason || "" };
       companyUpdate = { verificationStatus: "rejected", documentsApproved: false, rejectionReason: reason || "" };
@@ -1024,6 +1024,8 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     if (status === "verified") {
       updateFields.workerRejectionReason = "";
       updateFields.isVerified = true;
+      updateFields.profileUpdatedAfterVerification = false;
+      updateFields.profileUpdatedAfterVerificationAt = null;
     } else if (status === "rejected") {
       updateFields.workerRejectionReason = reason || "";
       // keep isVerified unchanged so rejected workers can still log in
