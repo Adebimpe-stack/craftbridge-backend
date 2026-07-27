@@ -1166,6 +1166,70 @@ router.put(
 });
 
 // =======================
+// UPDATE PUBLIC DIRECTORY FIELDS FOR A WORKER (admin edit)
+// Lightweight JSON-only route for the required public-directory fields.
+// =======================
+router.put("/workers/:id/public-directory", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+    if (user.role !== "jobseeker") {
+      return res.status(400).json({ message: "This endpoint is only for worker profiles" });
+    }
+
+    const {
+      name,
+      primaryTrade,
+      city,
+      state,
+      country,
+      location,
+      availability,
+    } = req.body || {};
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+    if (!primaryTrade || !String(primaryTrade).trim()) {
+      return res.status(400).json({ message: "Primary trade is required" });
+    }
+    if (!availability || !String(availability).trim()) {
+      return res.status(400).json({ message: "Availability is required" });
+    }
+
+    const update = {
+      name: String(name).trim(),
+      primaryTrade: String(primaryTrade).trim(),
+      availability: String(availability).trim(),
+    };
+
+    if (city !== undefined) update.city = String(city).trim();
+    if (state !== undefined) update.state = String(state).trim();
+    if (country !== undefined) update.country = String(country).trim();
+    if (location !== undefined) {
+      update.location = String(location).trim();
+    } else {
+      const locationParts = [update.city || user.city, update.state || user.state, update.country || user.country]
+        .filter(Boolean);
+      if (locationParts.length > 0) {
+        update.location = locationParts.join(", ");
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      update,
+      { returnDocument: "after", runValidators: false }
+    ).select("-password");
+
+    res.json({ message: "Public directory fields updated", user: updatedUser });
+  } catch (err) {
+    console.error("admin workers/:id/public-directory error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // AUDIT VERIFICATION STATUS ENUMS
 // Reports any documents that violate the current allowed enum values
 // =======================
