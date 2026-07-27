@@ -5,7 +5,6 @@ const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
 const {
   buildPublicDirectoryRankingPipeline,
-  buildPublicDirectoryEligibilityMatch,
 } = require("../utils/professionalRanking");
 const {
   recordProfileView,
@@ -38,7 +37,6 @@ router.get("/", async (req, res) => {
       // active because older documents rely on the schema default.
       accountStatus: { $in: ["active", null] },
       workerVerificationStatus: { $nin: ["rejected"] },
-      ...buildPublicDirectoryEligibilityMatch(),
     };
 
     const $and = [];
