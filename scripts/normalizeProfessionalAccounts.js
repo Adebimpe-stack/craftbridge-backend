@@ -19,7 +19,11 @@ const hasProfessionalFields = {
 
 const migrate = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/craftbridge");
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
+      socketTimeoutMS: 45000,
+    });
     console.log("Connected to MongoDB");
 
     const candidateRoles = ["jobseeker", "user", "customer"];
