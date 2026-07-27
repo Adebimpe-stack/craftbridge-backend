@@ -32,10 +32,21 @@ router.get("/", async (req, res) => {
     } = req.query;
 
     const matchStage = {
-      role: "jobseeker",
-      // Only active accounts appear publicly. Treat missing accountStatus as
-      // active because older documents rely on the schema default.
-      accountStatus: { $in: ["active", null] },
+      // Include both current jobseekers and legacy user/customer accounts that
+      // look like professionals (have a trade, skills, or availability set).
+      $or: [
+        { role: "jobseeker" },
+        {
+          role: { $in: ["user", "customer"] },
+          $or: [
+            { primaryTrade: { $exists: true, $nin: ["", null] } },
+            { skills: { $exists: true, $not: { $size: 0 } } },
+            { availability: { $exists: true, $nin: ["", null] } },
+          ],
+        },
+      ],
+      // Show any account that is not explicitly suspended or deactivated.
+      accountStatus: { $nin: ["suspended", "deactivated"] },
       workerVerificationStatus: { $nin: ["rejected"] },
     };
 
