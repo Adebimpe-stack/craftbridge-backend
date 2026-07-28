@@ -113,21 +113,30 @@ router.post(
       // FREE JOB + SUBSCRIPTION
       // =========================
 
-      if (
+      const now = new Date();
+      const isSubscribed =
+        company.subscriptionActive &&
+        company.subscriptionExpiry &&
+        new Date(company.subscriptionExpiry) > now;
 
-        user.hasUsedFreeJob &&
+      const isAgency = company.organizationType === "recruitment_agency";
+      const agencyTrialMs = 30 * 24 * 60 * 60 * 1000;
+      const withinAgencyTrial =
+        now - new Date(company.createdAt) <= agencyTrialMs;
 
-        !user.subscriptionActive
-
-      ) {
-
-        return res.status(403).json({
-
-          message:
-            "Subscription required to post another job",
-
-        });
-
+      if (!isSubscribed) {
+        if (isAgency) {
+          if (company.jobsPosted >= 1 || !withinAgencyTrial) {
+            const message = !withinAgencyTrial
+              ? "Your 30-day free trial has ended. Subscribe to Agency Pro to post more jobs."
+              : "Your free trial covers one job post. Subscribe to Agency Pro to post more jobs.";
+            return res.status(403).json({ message });
+          }
+        } else if (company.jobsPosted >= 1) {
+          return res.status(403).json({
+            message: "Subscription required to post another job",
+          });
+        }
       }
 
 const newJob =
@@ -180,24 +189,14 @@ const newJob =
 
   });
 
-      const savedJob =
-        await newJob.save();
+      const savedJob = await newJob.save();
 
       // =========================
-      // MARK FREE JOB AS USED
+      // TRACK COMPANY JOB POSTS
       // =========================
 
-      if (
-        !user.hasUsedFreeJob
-      ) {
-
-        await User.findByIdAndUpdate(
-          user._id,
-          { hasUsedFreeJob: true },
-          { runValidators: false }
-        );
-
-      }
+      company.jobsPosted = (company.jobsPosted || 0) + 1;
+      await company.save();
 
 
 res.status(201).json(

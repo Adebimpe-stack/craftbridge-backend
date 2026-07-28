@@ -904,9 +904,16 @@ router.get("/:id/dashboard", auth, async (req, res) => {
         teamMembersCount,
         pendingInvitations: pendingInvitations.length,
       },
-      jobsRemaining: company.subscriptionActive 
-        ? -1 // unlimited for active subscriptions
-        : Math.max(0, 1 - company.jobsPosted), // free plan: 1 job
+      jobsRemaining: (() => {
+        if (company.subscriptionActive) return -1; // unlimited for active subscriptions
+        if (company.organizationType === "recruitment_agency") {
+          const withinTrial =
+            new Date() - new Date(company.createdAt) <=
+            30 * 24 * 60 * 60 * 1000;
+          return withinTrial && company.jobsPosted === 0 ? 1 : 0;
+        }
+        return Math.max(0, 1 - company.jobsPosted); // free plan: 1 job
+      })(),
     });
   } catch (err) {
     res.status(500).json({
