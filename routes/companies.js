@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const auth = require("../middleware/auth");
 const Company = require("../models/Company");
 const Job = require("../models/Job");
@@ -54,6 +55,7 @@ const optionalAuth = async (req, res, next) => {
 // verified, active employer accounts not already represented by a
 // Company record. Response is normalized so the frontend always
 // receives the same field names.
+// Optimized: single aggregation for job counts instead of N+1 queries.
 // =========================
 router.get("/", async (req, res) => {
   try {
@@ -82,38 +84,45 @@ router.get("/", async (req, res) => {
       companyQuery.organizationType = typeFilter;
     }
 
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
     const [companies, allEmployers] = await Promise.all([
-      Company.find(companyQuery).sort({ createdAt: -1 }).lean(),
+      Company.find(companyQuery)
+        .populate("owner", "profilePicture bio industry companyType companySize location website verificationStatus")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       includeLegacyEmployerUsers
         ? User.find({
             role: "employer",
             verificationStatus: "verified",
             accountStatus: "active",
-          }).sort({ createdAt: -1 }).lean()
+          })
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .lean()
         : [],
     ]);
 
     // Build set of company ids and owner ids already covered by Company records
     const companyIds = new Set(companies.map((c) => c._id.toString()));
-    const coveredOwnerIds = new Set(companies.map((c) => c.owner?.toString()).filter(Boolean));
-
-    // Fetch owners so we can backfill empty company fields from user data
-    const ownerIds = companies.map((c) => c.owner).filter(Boolean);
-    const owners = await User.find({ _id: { $in: ownerIds } }).lean();
-    const ownerById = new Map(owners.map((u) => [u._id.toString(), u]));
+    const coveredOwnerIds = new Set(companies.map((c) => c.owner?._id?.toString() || c.owner?.toString()).filter(Boolean));
 
     const normalizedCompanies = companies.map((company) => {
-      const owner = company.owner ? ownerById.get(company.owner.toString()) : null;
+      const owner = company.owner || {};
       const enriched = {
         ...company,
-        logo: company.logo || owner?.profilePicture || "",
-        description: company.description || owner?.bio || owner?.professionalSummary || owner?.description || "",
-        industry: company.industry || company.businessType || owner?.industry || owner?.companyType || "",
-        businessType: company.businessType || owner?.companyType || "",
-        companySize: company.companySize || owner?.companySize || "",
-        location: company.location || owner?.location || "",
-        website: company.website || owner?.website || "",
-        verificationStatus: company.verificationStatus || owner?.verificationStatus || "none",
+        logo: company.logo || owner.profilePicture || "",
+        description: company.description || owner.bio || owner.professionalSummary || owner.description || "",
+        industry: company.industry || company.businessType || owner.industry || owner.companyType || "",
+        businessType: company.businessType || owner.companyType || "",
+        companySize: company.companySize || owner.companySize || "",
+        location: company.location || owner.location || "",
+        website: company.website || owner.website || "",
+        verificationStatus: company.verificationStatus || owner.verificationStatus || "none",
       };
       return normalizeCompany(enriched);
     });
@@ -148,23 +157,45 @@ router.get("/", async (req, res) => {
 
     const allCompanies = [...normalizedCompanies, ...employerCompanies];
 
-    // Count active, non-deleted jobs per company/employer
-    const companiesWithJobCount = await Promise.all(
-      allCompanies.map(async (company) => {
-        const jobCount = await Job.countDocuments({
-          companyId: company._id,
+    // Count active, non-deleted jobs for all directory entries in one query
+    const companyObjectIds = allCompanies
+      .map((c) => {
+        try {
+          return new mongoose.Types.ObjectId(c._id.toString());
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    const jobCounts = await Job.aggregate([
+      {
+        $match: {
+          companyId: { $in: companyObjectIds },
           status: "active",
           isDeleted: false,
-        });
-        return {
-          ...company,
-          jobCount,
-        };
-      })
+        },
+      },
+      {
+        $group: {
+          _id: "$companyId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const jobCountMap = new Map(
+      jobCounts.map((j) => [j._id.toString(), j.count])
     );
+
+    const companiesWithJobCount = allCompanies.map((company) => ({
+      ...company,
+      jobCount: jobCountMap.get(company._id.toString()) || 0,
+    }));
 
     res.json(companiesWithJobCount);
   } catch (err) {
+    console.error("List companies error:", err);
     res.status(500).json({ message: err.message });
   }
 });

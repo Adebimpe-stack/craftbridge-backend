@@ -143,4 +143,6 @@ const jobSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+jobSchema.index({ companyId: 1, status: 1, isDeleted: 1 });
+
 module.exports = mongoose.model("Job", jobSchema);

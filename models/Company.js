@@ -229,6 +229,7 @@ companySchema.index({ owner: 1 });
 companySchema.index({ subscriptionActive: 1 });
 companySchema.index({ subscriptionExpiry: 1 });
 companySchema.index({ subscriptionActive: 1, subscriptionExpiry: 1 });
+companySchema.index({ verificationStatus: 1, isActive: 1, isDeleted: 1, organizationType: 1 });
 
 companySchema.virtual("age").get(function () {
   return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
