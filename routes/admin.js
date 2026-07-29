@@ -1753,4 +1753,34 @@ router.get("/verification/:id/history", auth, requireRole("admin"), async (req, 
   }
 });
 
+// =======================
+// PROFESSIONALS SPOTLIGHT DATA
+// Admin-only list of professionals suitable for spotlight cards.
+// =======================
+router.get("/professionals-for-spotlight", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const search = req.query.search?.trim();
+    const query = { role: "jobseeker" };
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { primaryTrade: { $regex: search, $options: "i" } },
+        { headline: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const professionals = await User.find(query)
+      .select("name primaryTrade headline experienceYears location city state skills workerVerificationStatus profileImage")
+      .sort({ name: 1 })
+      .limit(500)
+      .lean();
+
+    res.json(professionals);
+  } catch (err) {
+    console.error("professionals-for-spotlight error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
