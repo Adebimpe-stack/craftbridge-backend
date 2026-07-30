@@ -124,17 +124,26 @@ router.post(
       const withinAgencyTrial =
         now - new Date(company.createdAt) <= agencyTrialMs;
 
+      // The free plan allows one *active* job, so the limit is measured
+      // against live listings rather than the cumulative jobsPosted counter.
+      const activeJobs = await Job.countDocuments({
+        companyId: user.companyId,
+        status: "active",
+        isDeleted: false,
+      });
+
       if (!isSubscribed) {
         if (isAgency) {
-          if (company.jobsPosted >= 1 || !withinAgencyTrial) {
+          if (activeJobs >= 1 || !withinAgencyTrial) {
             const message = !withinAgencyTrial
               ? "Your 30-day free trial has ended. Subscribe to Agency Pro to post more jobs."
-              : "Your free trial covers one job post. Subscribe to Agency Pro to post more jobs.";
+              : "Your free trial covers one active job. Subscribe to Agency Pro to post more jobs.";
             return res.status(403).json({ message });
           }
-        } else if (company.jobsPosted >= 1) {
+        } else if (activeJobs >= 1) {
           return res.status(403).json({
-            message: "Subscription required to post another job",
+            message:
+              "Free plan allows only 1 active job. Upgrade your subscription to post more jobs.",
           });
         }
       }
@@ -167,7 +176,9 @@ const newJob =
       req.body.experienceLevel,
 
     vacancies:
-      req.body.vacancies,
+      req.body.vacancies === "" || req.body.vacancies === null
+        ? undefined
+        : req.body.vacancies,
 
     applicationDeadline:
       req.body.applicationDeadline,
