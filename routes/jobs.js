@@ -124,11 +124,13 @@ router.post(
       const withinAgencyTrial =
         now - new Date(company.createdAt) <= agencyTrialMs;
 
-      // The free plan allows one *active* job, so the limit is measured
-      // against live listings rather than the cumulative jobsPosted counter.
+      // The free plan allows one live listing, so the limit is measured
+      // against jobs that still occupy a slot rather than the cumulative
+      // jobsPosted counter. Only closing or deleting a job frees the slot;
+      // a suspended job still counts.
       const activeJobs = await Job.countDocuments({
         companyId: user.companyId,
-        status: "active",
+        status: { $in: ["active", "suspended"] },
         isDeleted: false,
       });
 
