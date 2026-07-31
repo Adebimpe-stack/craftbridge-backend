@@ -32,9 +32,6 @@ const reportRoutes =
 
 const paystackWebhookRoutes =
   require("./routes/paystackWebhook");
-
-const feedRoutes =
-  require("./routes/feeds");
 // ==============================
 // IMPORT ROUTES
 // ==============================
@@ -233,11 +230,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use("/api/reports", reportRoutes);
-
-// Aggregator-facing feed, mounted at the root so the submitted URL stays
-// /feeds/jobs.xml, and under /api for consistency with the rest of the API.
-app.use("/", feedRoutes);
-app.use("/api", feedRoutes);
 
 // ==============================
 // ROOT / HEALTH ROUTES
