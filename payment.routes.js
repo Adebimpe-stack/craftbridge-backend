@@ -6,20 +6,27 @@ const auth = require("./middleware/auth");
 const User = require("./models/User");
 const Company = require("./models/Company");
 const { activateSubscription } = require("./utils/syncSubscription");
+const { getPaidPlan, resolveAccountType } = require("./config/plans");
 
 // INIT PAYMENT
 router.post("/payments/paystack/init", auth, async (req, res) => {
   try {
     const user = req.user;
 
+    const company = user.companyId
+      ? await Company.findById(user.companyId).select("organizationType")
+      : null;
+    const plan = getPaidPlan(resolveAccountType(user, company));
+
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email: user.email,
-        amount: 5000 * 100, // ₦5,000 in kobo
+        amount: plan.amount * 100, // plan price in kobo
         metadata: {
           userId: user._id.toString(),
           companyId: user.companyId ? user.companyId.toString() : null,
+          plan: plan.id,
         },
         callback_url: `${process.env.FRONTEND_URL}/payment-success`,
       },
@@ -32,10 +39,13 @@ router.post("/payments/paystack/init", auth, async (req, res) => {
     );
 
     return res.json({
+      plan: plan.id,
+      amount: plan.amount,
       authorization_url: response.data.data.authorization_url
     });
 
-  } catch (err) {    res.status(500).json({ message: "Payment init failed" });
+  } catch (err) {
+    res.status(500).json({ message: "Payment init failed" });
   }
 });
 
@@ -82,7 +92,8 @@ router.get("/payments/paystack/verify/:reference", auth, async (req, res) => {
       subscriptionExpiry: expiry,
     });
 
-  } catch (err) {    res.status(500).json({ message: "Payment verification failed. Please contact support." });
+  } catch (err) {
+    res.status(500).json({ message: "Payment verification failed. Please contact support." });
   }
 });
 
