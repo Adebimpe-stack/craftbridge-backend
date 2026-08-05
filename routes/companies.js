@@ -66,8 +66,8 @@ router.get("/", async (req, res) => {
         ? requestedType
         : "service_business";
 
-    // For service_business, also include legacy employer users without a Company record.
-    const includeLegacyEmployerUsers = typeFilter === "service_business";
+    // For service_business, do NOT include legacy employer users - they should only appear in employer listings
+    const includeLegacyEmployerUsers = false;
 
     const companyQuery = {
       verificationStatus: "verified",
