@@ -64,6 +64,10 @@ const RECIPIENT_GROUPS = {
     label: "Paid Plan Users",
     filter: { $or: [{ subscriptionPlan: { $ne: "" } }, { "subscription.plan": { $ne: "" } }] },
   },
+  recruitment_agencies: {
+    label: "Recruitment Agencies",
+    filter: { organizationType: "recruitment_agency" },
+  },
 };
 
 // =======================
@@ -332,6 +336,84 @@ router.get("/jobs/:id", auth, requireRole("admin"), async (req, res) => {
     if (!job) return res.status(404).json({ message: "Job not found" });
     res.json(job);
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET RECRUITMENT AGENCIES (ADMIN VIEW)
+// =======================
+router.get("/recruitment-agencies", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const { status, limit = 50, page = 1 } = req.query;
+    
+    const query = { organizationType: "recruitment_agency" };
+    
+    if (status && status !== "all") {
+      query.verificationStatus = status;
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const agencies = await Company.find(query)
+      .populate("owner", "name email profilePicture phone")
+      .populate("teamMembers", "name email profilePicture")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+    
+    const total = await Company.countDocuments(query);
+    
+    res.json({
+      agencies,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    console.error("GET recruitment-agencies error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// GET SINGLE RECRUITMENT AGENCY (ADMIN VIEW)
+// =======================
+router.get("/recruitment-agencies/:id", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const agency = await Company.findById(req.params.id)
+      .populate("owner", "name email profilePicture phone location")
+      .populate("teamMembers", "name email profilePicture role")
+      .lean();
+    
+    if (!agency) {
+      return res.status(404).json({ message: "Recruitment agency not found" });
+    }
+    
+    if (agency.organizationType !== "recruitment_agency") {
+      return res.status(400).json({ message: "This is not a recruitment agency" });
+    }
+    
+    // Get jobs posted by this agency
+    const jobs = await Job.find({ 
+      companyId: agency._id,
+      isDeleted: false 
+    }).sort({ createdAt: -1 });
+    
+    res.json({
+      agency,
+      jobs: {
+        total: jobs.length,
+        active: jobs.filter(j => j.status === "active").length,
+        list: jobs
+      }
+    });
+  } catch (err) {
+    console.error("GET recruitment-agency/:id error:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
