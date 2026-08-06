@@ -845,7 +845,7 @@ router.put(
 // =======================
 // UPDATE SERVICE BUSINESS IDENTITY & CONTACT (admin edit)
 // =======================
-router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async (req, res) => {
+router.put("/employers/:id/identity-contact", auth, requireRole("admin"), upload.single("profilePicture"), async (req, res) => {
   try {
     const userFields = ["name", "email", "phone", "companyEmail", "linkedin"];
     const companyFields = ["name", "location", "website", "linkedin"];
@@ -858,6 +858,14 @@ router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async 
     }
     for (const field of companyFields) {
       if (req.body[field] !== undefined) companyUpdates[field] = req.body[field];
+    }
+
+    // Handle profile picture upload
+    if (req.file) {
+      userUpdates.profilePicture = req.file.location;
+      if (companyUpdates.name === undefined) {
+        companyUpdates.logo = req.file.location;
+      }
     }
 
     if (Object.keys(userUpdates).length === 0 && Object.keys(companyUpdates).length === 0) {
@@ -894,6 +902,12 @@ router.put("/employers/:id/identity-contact", auth, requireRole("admin"), async 
     // Update public-facing fields on the linked Company record
     if (company && Object.keys(companyUpdates).length > 0) {
       Object.assign(company, companyUpdates);
+      await company.save({ validateBeforeSave: false });
+    }
+
+    // Sync profile picture to company logo if company exists
+    if (company && req.file && !companyUpdates.logo) {
+      company.logo = req.file.location;
       await company.save({ validateBeforeSave: false });
     }
 
@@ -1086,7 +1100,7 @@ router.put(
     const allowedFields = [
       "name", "headline", "primaryTrade", "category", "skills", "experienceYears",
       "availability", "bio", "city", "state", "country", "location", "resumeUrl",
-      "website", "linkedin", "github", "certifications", "languages"
+      "website", "linkedin", "github", "certifications", "languages", "profilePicture"
     ];
 
     const update = {};
@@ -1126,6 +1140,12 @@ router.put(
     if (req.file) {
       update.profileImage = req.file.location;
       update.profilePicture = req.file.location;
+    }
+
+    // Handle profile picture URL sent directly (not as file upload)
+    if (req.body.profilePicture && typeof req.body.profilePicture === 'string') {
+      update.profilePicture = req.body.profilePicture;
+      update.profileImage = req.body.profilePicture;
     }
 
     if (Object.keys(update).length === 0) {
@@ -1228,6 +1248,103 @@ router.put("/workers/:id/public-directory", auth, requireRole("admin"), async (r
     res.status(500).json({ message: err.message });
   }
 });
+
+// =======================
+// UPDATE ANY USER PROFILE (admin edit for all user types)
+// =======================
+router.put(
+  "/users/:id",
+  auth,
+  requireRole("admin"),
+  upload.single("profilePicture"),
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const allowedFields = [
+        "name", "email", "phone", "profilePicture", "bio", "headline",
+        "location", "city", "state", "country", "website", "linkedin", "github"
+      ];
+
+      const update = {};
+      for (const key of allowedFields) {
+        if (req.body[key] === undefined) continue;
+
+        let value = req.body[key];
+
+        if (key === "email") {
+          value = String(value).trim().toLowerCase();
+          const existingUser = await User.findOne({
+            email: value,
+            _id: { $ne: user._id },
+          });
+          if (existingUser) {
+            return res.status(409).json({ message: "Email already in use" });
+          }
+        }
+
+        if (key === "name") {
+          value = String(value).trim();
+          if (!value) return res.status(400).json({ message: "Name cannot be empty" });
+        }
+
+        if (["bio", "headline", "location", "city", "state", "country", "phone"].includes(key)) {
+          value = String(value).trim();
+        }
+
+        if (["website", "linkedin", "github"].includes(key)) {
+          value = String(value).trim();
+        }
+
+        update[key] = value;
+      }
+
+      if (req.file) {
+        update.profilePicture = req.file.location;
+        update.profileImage = req.file.location;
+      }
+
+      // Handle profile picture URL sent directly (not as file upload)
+      if (req.body.profilePicture && typeof req.body.profilePicture === 'string') {
+        update.profilePicture = req.body.profilePicture;
+        update.profileImage = req.body.profilePicture;
+      }
+
+      if (Object.keys(update).length === 0) {
+        return res.status(400).json({ message: "No valid fields provided to update" });
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.params.id,
+        update,
+        { returnDocument: "after", runValidators: false }
+      ).select("-password");
+
+      // If this is an employer with a company, sync relevant fields to company
+      if (user.role === "employer" && user.companyId) {
+        const company = await Company.findById(user.companyId);
+        if (company) {
+          const companyUpdate = {};
+          if (update.name) companyUpdate.name = update.name;
+          if (update.location) companyUpdate.location = update.location;
+          if (update.website) companyUpdate.website = update.website;
+          if (update.linkedin) companyUpdate.linkedin = update.linkedin;
+          if (update.profilePicture) companyUpdate.logo = update.profilePicture;
+
+          if (Object.keys(companyUpdate).length > 0) {
+            await Company.findByIdAndUpdate(company._id, companyUpdate, { runValidators: false });
+          }
+        }
+      }
+
+      res.json({ message: "User profile updated successfully", user: updatedUser });
+    } catch (err) {
+      console.error("admin users/:id update error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
 
 // =======================
 // AUDIT VERIFICATION STATUS ENUMS

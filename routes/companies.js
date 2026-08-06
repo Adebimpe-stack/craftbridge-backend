@@ -115,6 +115,7 @@ router.get("/", async (req, res) => {
       const owner = company.owner || {};
       const enriched = {
         ...company,
+        // Only use owner data as fallback if company field is missing, but never override company name
         logo: company.logo || owner.profilePicture || "",
         description: company.description || owner.bio || owner.professionalSummary || owner.description || "",
         industry: company.industry || company.businessType || owner.industry || owner.companyType || "",
@@ -123,6 +124,8 @@ router.get("/", async (req, res) => {
         location: company.location || owner.location || "",
         website: company.website || owner.website || "",
         verificationStatus: company.verificationStatus || owner.verificationStatus || "none",
+        // Ensure company name is preserved, never use owner name as fallback for company records
+        name: company.name || "Unnamed Company",
       };
       return normalizeCompany(enriched);
     });
