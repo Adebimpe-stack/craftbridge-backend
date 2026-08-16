@@ -136,6 +136,20 @@ const companySchema = new mongoose.Schema(
       default: "",
     },
 
+    // Portfolio for showcasing work (images and videos)
+    portfolio: [
+      {
+        title: String,
+        description: String,
+        category: String,
+        completionYear: Number,
+        isFeatured: { type: Boolean, default: false },
+        url: String,
+        caption: String,
+        type: { type: String, enum: ["image", "video"], default: "image" },
+      },
+    ],
+
     // Company status
     isActive: {
       type: Boolean,

@@ -10,6 +10,10 @@ const allowedMimeTypes = [
   "image/png",
   "image/jpeg",
   "image/jpg",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
 ];
 
 const requiredConfig = [
@@ -73,6 +77,10 @@ const buildUpload = () => {
           folder = "resumes";
         }
 
+        if (file.fieldname === "portfolioImages" || file.fieldname === "portfolioVideos") {
+          folder = "portfolio";
+        }
+
         const uniqueName = `${folder}/${Date.now()}-${Math.round(
           Math.random() * 1e9
         )}${path.extname(file.originalname)}`;
@@ -81,7 +89,7 @@ const buildUpload = () => {
       },
     }),
     limits: {
-      fileSize: 5 * 1024 * 1024,
+      fileSize: 50 * 1024 * 1024, // Increased to 50MB for videos
     },
     fileFilter,
   });

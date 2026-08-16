@@ -143,8 +143,115 @@ const sendInvitationEmail = async ({
   }
 };
 
+const sendWelcomeEmail = async ({ to, name, role }) => {
+  try {
+    const roleSpecificContent = {
+      jobseeker: {
+        title: "Welcome to CraftBridge Jobs!",
+        message: "You're now part of Nigeria's leading platform for skilled professionals and service businesses.",
+        cta: "Build Your Profile",
+        link: "https://craftbridgejobs.com/profile",
+        tips: [
+          "Complete your professional profile to get noticed",
+          "Upload your portfolio to showcase your work",
+          "Set your availability and service preferences",
+          "Browse job opportunities and service requests"
+        ]
+      },
+      employer: {
+        title: "Welcome to CraftBridge for Business!",
+        message: "Start connecting with skilled professionals and grow your business.",
+        cta: "Post Your First Job",
+        link: "https://craftbridgejobs.com/post-job",
+        tips: [
+          "Complete your company profile",
+          "Post job openings to find talent",
+          "Browse skilled professionals",
+          "Manage team members and invitations"
+        ]
+      },
+      customer: {
+        title: "Welcome to CraftBridge!",
+        message: "Find trusted service providers for your needs.",
+        cta: "Find Professionals",
+        link: "https://craftbridgejobs.com/professionals",
+        tips: [
+          "Browse verified professionals",
+          "Request services directly",
+          "Save your favorite providers",
+          "Track your service requests"
+        ]
+      }
+    };
+
+    const content = roleSpecificContent[role] || roleSpecificContent.jobseeker;
+
+    const info = await transporter.sendMail({
+      from: `"CraftBridge Jobs" <${process.env.ZEPTO_EMAIL}>`,
+      to,
+      subject: `Welcome to CraftBridge Jobs, ${name}!`,
+
+      html: `
+        <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f8fafc; padding:40px 20px;">
+          <div style="background:white; border-radius:16px; padding:40px; box-shadow:0 10px 30px rgba(0,0,0,0.05);">
+            <h1 style="color:#166534; margin-bottom:15px; font-size:32px;">${content.title}</h1>
+            
+            <p style="color:#475569; font-size:16px; line-height:1.7; margin-bottom:20px;">
+              Hi ${name},
+            </p>
+            
+            <p style="color:#475569; font-size:16px; line-height:1.7; margin-bottom:25px;">
+              ${content.message}
+            </p>
+
+            <a
+              href="${content.link}"
+              style="
+                display:inline-block;
+                padding:14px 28px;
+                background:#166534;
+                color:white;
+                text-decoration:none;
+                border-radius:10px;
+                margin:20px 0;
+                font-weight:600;
+                font-size:16px;
+              "
+            >
+              ${content.cta}
+            </a>
+
+            <div style="margin-top:35px; padding:25px; background:#f1f5f9; border-radius:12px;">
+              <h3 style="color:#166534; margin-bottom:15px; font-size:18px;">Getting Started Tips:</h3>
+              <ul style="color:#475569; line-height:1.8; padding-left:20px;">
+                ${content.tips.map(tip => `<li style="margin-bottom:8px;">${tip}</li>`).join('')}
+              </ul>
+            </div>
+
+            <p style="margin-top:30px; color:#64748b; font-size:14px; line-height:1.6;">
+              Need help? Contact our support team at <a href="mailto:support@craftbridgejobs.com" style="color:#166534;">support@craftbridgejobs.com</a>
+            </p>
+
+            <hr style="margin:30px 0; border:none; border-top:1px solid #e2e8f0;" />
+
+            <p style="color:#94a3b8; font-size:12px;">
+              © 2026 CraftBridge Jobs. All rights reserved.
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("WELCOME EMAIL ERROR:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendResetPasswordEmail,
   sendInvitationEmail,
+  sendWelcomeEmail,
 };

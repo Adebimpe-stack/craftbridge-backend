@@ -80,6 +80,7 @@ auth,
 upload.fields([
   { name: "profilePicture", maxCount: 1 },
   { name: "portfolioImages", maxCount: 10 },
+  { name: "portfolioVideos", maxCount: 5 },
 ]),
 async (req, res) => {
 try {
@@ -155,9 +156,17 @@ req.user.id
       type: "image",
     }));
 
+  const newPortfolioVideos =
+    (req.files?.portfolioVideos || []).map((file) => ({
+      url: file.location,
+      caption: "",
+      type: "video",
+    }));
+
   const updatedPortfolio = [
     ...(user.portfolio || []),
     ...newPortfolioImages,
+    ...newPortfolioVideos,
   ];
 
   const updatedUser = await User.findByIdAndUpdate(
@@ -284,6 +293,42 @@ router.delete(
         message: "Resume removed",
       });
 
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+// DELETE PORTFOLIO ITEM
+router.delete(
+  "/portfolio/:itemId",
+  auth,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.id);
+
+      if (!user) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      const updatedPortfolio = (user.portfolio || []).filter(
+        (item) => item._id?.toString() !== req.params.itemId
+      );
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user.id,
+        { portfolio: updatedPortfolio },
+        { returnDocument: "after", runValidators: false }
+      );
+
+      res.json({
+        message: "Portfolio item removed",
+        user: updatedUser,
+      });
     } catch (err) {
       res.status(500).json({
         message: err.message,

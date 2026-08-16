@@ -7,6 +7,7 @@ const router = express.Router();
 const User = require("../models/User");
 const TeamInvitation = require("../models/TeamInvitation");
 const sendEmail = require("../utils/sendEmail");
+const { sendWelcomeEmail } = require("../services/emailService");
 
 
 
@@ -290,6 +291,13 @@ router.post(
 
       });
 
+      // Send welcome email immediately after registration
+      await sendWelcomeEmail({
+        to: email,
+        name: name,
+        role: user.role,
+      });
+
       const response = {
         message: "Account created successfully. Please check your email to verify your account.",
       };
@@ -375,6 +383,13 @@ router.get(
         { isVerified: true, emailVerificationToken: undefined },
         { runValidators: false }
       );
+
+      // Send welcome email after verification
+      await sendWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        role: user.role,
+      });
 
       return res
         .status(200)

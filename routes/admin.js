@@ -290,8 +290,22 @@ router.get("/users/:id/activity", auth, requireRole("admin"), async (req, res) =
 // =======================
 router.get("/jobs", auth, requireRole("admin"), async (req, res) => {
   try {
-    const jobs = await Job.find().sort({ createdAt: -1 });
-    res.json(jobs);
+    const jobs = await Job.find()
+      .populate("companyId", "name verificationStatus subscriptionActive isActive")
+      .sort({ createdAt: -1 });
+    
+    const formattedJobs = jobs.map(job => {
+      const company = job.companyId;
+      const isCraftBridgeRecruitment = company?.name === "CraftBridge Recruitment";
+      return {
+        ...job.toObject(),
+        companyName: isCraftBridgeRecruitment ? "Recruiting through CraftBridge" : (company?.name || "Confidential"),
+        companyVerified: company?.verificationStatus === "verified",
+        companySubscribed: company?.subscriptionActive || false,
+      };
+    });
+    
+    res.json(formattedJobs);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -402,14 +416,27 @@ router.get("/recruitment-agencies/:id", auth, requireRole("admin"), async (req, 
     const jobs = await Job.find({ 
       companyId: agency._id,
       isDeleted: false 
-    }).sort({ createdAt: -1 });
+    })
+    .populate("companyId", "name verificationStatus subscriptionActive isActive")
+    .sort({ createdAt: -1 });
+    
+    const formattedJobs = jobs.map(job => {
+      const company = job.companyId;
+      const isCraftBridgeRecruitment = company?.name === "CraftBridge Recruitment";
+      return {
+        ...job.toObject(),
+        companyName: isCraftBridgeRecruitment ? "Recruiting through CraftBridge" : (company?.name || "Confidential"),
+        companyVerified: company?.verificationStatus === "verified",
+        companySubscribed: company?.subscriptionActive || false,
+      };
+    });
     
     res.json({
       agency,
       jobs: {
-        total: jobs.length,
-        active: jobs.filter(j => j.status === "active").length,
-        list: jobs
+        total: formattedJobs.length,
+        active: formattedJobs.filter(j => j.status === "active").length,
+        list: formattedJobs
       }
     });
   } catch (err) {

@@ -2,6 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const auth = require("../middleware/auth");
+const upload = require("../middleware/upload");
 const Company = require("../models/Company");
 const Job = require("../models/Job");
 const User = require("../models/User");
@@ -270,11 +271,24 @@ router.get("/:id/jobs", optionalAuth, async (req, res) => {
       query.status = "active";
     }
 
-    const jobs = await Job.find(query).sort({ createdAt: -1 });
+    const jobs = await Job.find(query)
+      .populate("companyId", "name verificationStatus subscriptionActive isActive")
+      .sort({ createdAt: -1 });
+
+    const formattedJobs = jobs.map(job => {
+      const company = job.companyId;
+      const isCraftBridgeRecruitment = company?.name === "CraftBridge Recruitment";
+      return {
+        ...job.toObject(),
+        companyName: isCraftBridgeRecruitment ? "Recruiting through CraftBridge" : (company?.name || "Confidential"),
+        companyVerified: company?.verificationStatus === "verified",
+        companySubscribed: company?.subscriptionActive || false,
+      };
+    });
 
     res.json({
       company,
-      jobs
+      jobs: formattedJobs
     });
 
   } catch (err) {
@@ -367,6 +381,120 @@ router.put("/:id", auth, async (req, res) => {
     });
   }
 });
+
+// =========================
+// UPLOAD COMPANY PORTFOLIO
+// =========================
+router.post(
+  "/:id/portfolio",
+  auth,
+  upload.fields([
+    { name: "portfolioImages", maxCount: 10 },
+    { name: "portfolioVideos", maxCount: 5 },
+  ]),
+  async (req, res) => {
+    try {
+      const company = await Company.findById(req.params.id);
+
+      if (!company) {
+        return res.status(404).json({
+          message: "Company not found"
+        });
+      }
+
+      // Check if user is owner or admin of the company
+      const user = await User.findById(req.user.id);
+      if (
+        !user.companyId ||
+        user.companyId.toString() !== company._id.toString() ||
+        (user.companyRole !== "owner" && user.companyRole !== "admin")
+      ) {
+        return res.status(403).json({
+          message: "Not authorized to update this company"
+        });
+      }
+
+      const newPortfolioImages =
+        (req.files?.portfolioImages || []).map((file) => ({
+          url: file.location,
+          caption: "",
+          type: "image",
+        }));
+
+      const newPortfolioVideos =
+        (req.files?.portfolioVideos || []).map((file) => ({
+          url: file.location,
+          caption: "",
+          type: "video",
+        }));
+
+      const updatedPortfolio = [
+        ...(company.portfolio || []),
+        ...newPortfolioImages,
+        ...newPortfolioVideos,
+      ];
+
+      company.portfolio = updatedPortfolio;
+      await company.save();
+
+      res.json({
+        message: "Portfolio updated successfully",
+        company,
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+// =========================
+// DELETE COMPANY PORTFOLIO ITEM
+// =========================
+router.delete(
+  "/:id/portfolio/:itemId",
+  auth,
+  async (req, res) => {
+    try {
+      const company = await Company.findById(req.params.id);
+
+      if (!company) {
+        return res.status(404).json({
+          message: "Company not found"
+        });
+      }
+
+      // Check if user is owner or admin of the company
+      const user = await User.findById(req.user.id);
+      if (
+        !user.companyId ||
+        user.companyId.toString() !== company._id.toString() ||
+        (user.companyRole !== "owner" && user.companyRole !== "admin")
+      ) {
+        return res.status(403).json({
+          message: "Not authorized to update this company"
+        });
+      }
+
+      const updatedPortfolio = (company.portfolio || []).filter(
+        (item) => item._id?.toString() !== req.params.itemId
+      );
+
+      company.portfolio = updatedPortfolio;
+      await company.save();
+
+      res.json({
+        message: "Portfolio item removed",
+        company,
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
 
 // =========================
 // GET COMPANY TEAM MEMBERS

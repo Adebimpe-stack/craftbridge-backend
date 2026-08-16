@@ -342,6 +342,14 @@ router.put(
     name: "profilePicture",
     maxCount: 1,
   },
+  {
+    name: "portfolioImages",
+    maxCount: 10,
+  },
+  {
+    name: "portfolioVideos",
+    maxCount: 5,
+  },
 ]),
 
   async (req, res) => {
@@ -445,6 +453,29 @@ router.put(
           req.files.profilePicture[0].location;
       }
 
+      // Handle portfolio uploads
+      const newPortfolioImages =
+        (req.files?.portfolioImages || []).map((file) => ({
+          url: file.location,
+          caption: "",
+          type: "image",
+        }));
+
+      const newPortfolioVideos =
+        (req.files?.portfolioVideos || []).map((file) => ({
+          url: file.location,
+          caption: "",
+          type: "video",
+        }));
+
+      const updatedPortfolio = [
+        ...(user.portfolio || []),
+        ...newPortfolioImages,
+        ...newPortfolioVideos,
+      ];
+
+      user.portfolio = updatedPortfolio;
+
       // =========================
       // PERSIST COMPANY DATA TO COMPANY MODEL
       // =========================
@@ -496,6 +527,10 @@ router.put(
 
       if (user.verificationDocuments?.length) {
         companyUpdateFields.verificationDocuments = user.verificationDocuments;
+      }
+
+      if (user.portfolio?.length) {
+        companyUpdateFields.portfolio = user.portfolio;
       }
 
       if (profileUpdatedAfterVerification) {

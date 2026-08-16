@@ -239,9 +239,10 @@ router.get(
         .filter((job) => job.companyId?.isActive !== false)
         .map((job) => {
         const company = job.companyId;
+        const isCraftBridgeRecruitment = company?.name === "CraftBridge Recruitment";
         return {
           ...job.toObject(),
-          companyName: company?.name || "Confidential",
+          companyName: isCraftBridgeRecruitment ? "Recruiting through CraftBridge" : (company?.name || "Confidential"),
           companyVerified: company?.verificationStatus === "verified",
           companySubscribed: company?.subscriptionActive || false,
         };
@@ -286,9 +287,10 @@ router.get(
       }
 
       const company = job.companyId;
+      const isCraftBridgeRecruitment = company?.name === "CraftBridge Recruitment";
       res.json({
         ...job.toObject(),
-        companyName: company?.name || "Confidential",
+        companyName: isCraftBridgeRecruitment ? "Recruiting through CraftBridge" : (company?.name || "Confidential"),
         companyVerified: company?.verificationStatus === "verified",
         companySubscribed: company?.subscriptionActive || false,
       });
