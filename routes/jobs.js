@@ -15,6 +15,7 @@ const User =
   require("../models/User");
 
 const { createNotification } = require("../services/notificationService");
+const { submitJobForIndexing } = require("../services/indexingService");
 
 const auth =
   require("../middleware/auth");
@@ -22,6 +23,50 @@ const auth =
 const upload = require("../middleware/upload");
 
 const { body, validationResult } = require("express-validator");
+
+// =========================
+// GENERATE SITEMAP
+// =========================
+router.get("/sitemap.xml", async (req, res) => {
+  try {
+    const jobs = await Job.find({
+      status: "active",
+      isDeleted: false,
+    })
+      .populate("companyId", "isActive")
+      .select("_id updatedAt")
+      .sort({ updatedAt: -1 });
+
+    const baseUrl = process.env.FRONTEND_URL || "https://craftbridgejobs.com";
+    
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+`;
+
+    jobs.forEach(job => {
+      if (job.companyId?.isActive !== false) {
+        const jobUrl = `${baseUrl}/jobs/${job._id}`;
+        const lastMod = job.updatedAt ? job.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        
+        xml += `  <url>
+    <loc>${jobUrl}</loc>
+    <lastmod>${lastMod}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+`;
+      }
+    });
+
+    xml += `</urlset>`;
+
+    res.set('Content-Type', 'application/xml');
+    res.send(xml);
+  } catch (error) {
+    console.error("Sitemap generation error:", error);
+    res.status(500).json({ message: "Error generating sitemap" });
+  }
+});
 
 // =========================
 // CREATE JOB
@@ -197,6 +242,13 @@ const newJob =
 
       company.jobsPosted = (company.jobsPosted || 0) + 1;
       await company.save();
+
+      // =========================
+      // SUBMIT TO GOOGLE INDEXING API
+      // =========================
+      // Non-blocking call to submit the new job to Google for indexing
+      submitJobForIndexing(savedJob._id, 'URL_UPDATED')
+        .catch(err => console.error('Error submitting job to Google Indexing:', err));
 
 
 res.status(201).json(
@@ -384,6 +436,13 @@ router.put(
 
       await job.save();
 
+      // =========================
+      // SUBMIT TO GOOGLE INDEXING API
+      // =========================
+      // Non-blocking call to submit the updated job to Google for indexing
+      submitJobForIndexing(job._id, 'URL_UPDATED')
+        .catch(err => console.error('Error submitting job to Google Indexing:', err));
+
       res.json(job);
 
 } catch (error) {
@@ -445,6 +504,13 @@ router.put(
 
 await Job.findByIdAndUpdate(req.params.id, { status: "closed" }, { runValidators: false });
 
+// =========================
+// SUBMIT TO GOOGLE INDEXING API
+// =========================
+// Non-blocking call to notify Google that the job is no longer active
+submitJobForIndexing(req.params.id, 'URL_DELETED')
+  .catch(err => console.error('Error submitting job deletion to Google Indexing:', err));
+
 res.json({
   message:
     "Job closed successfully",
@@ -493,6 +559,13 @@ router.post("/:id/close", auth, async (req, res) => {
     }
 
     await Job.findByIdAndUpdate(req.params.id, { status: "closed" }, { runValidators: false });
+
+    // =========================
+    // SUBMIT TO GOOGLE INDEXING API
+    // =========================
+    // Non-blocking call to notify Google that the job is no longer active
+    submitJobForIndexing(req.params.id, 'URL_DELETED')
+      .catch(err => console.error('Error submitting job deletion to Google Indexing:', err));
 
     res.json({ message: "Job closed successfully" });
 
@@ -596,6 +669,13 @@ await Job.findByIdAndUpdate(
   },
   { runValidators: false }
 );
+
+// =========================
+// SUBMIT TO GOOGLE INDEXING API
+// =========================
+// Non-blocking call to notify Google that the job is deleted
+submitJobForIndexing(req.params.id, 'URL_DELETED')
+  .catch(err => console.error('Error submitting job deletion to Google Indexing:', err));
 
 res.json({
   message:

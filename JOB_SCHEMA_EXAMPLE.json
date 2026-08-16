@@ -1,0 +1,41 @@
+{
+  "@context": "https://schema.org",
+  "@type": "JobPosting",
+  "title": "Senior Software Engineer",
+  "description": "We are looking for an experienced Senior Software Engineer to join our growing team. The ideal candidate will have strong experience in modern web technologies, database management, and cloud services. You will be responsible for designing and implementing scalable software solutions, mentoring junior developers, and collaborating with cross-functional teams to deliver high-quality products.",
+  "datePosted": "2026-08-14",
+  "validThrough": "2026-09-30",
+  "employmentType": "FULL_TIME",
+  "hiringOrganization": {
+    "@type": "Organization",
+    "name": "Tech Innovators Nigeria"
+  },
+  "jobLocation": {
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Lagos",
+      "addressCountry": "NG"
+    }
+  },
+  "applicantLocationRequirements": {
+    "@type": "Country",
+    "name": "NG"
+  },
+  "jobLocationType": "HYBRID",
+  "baseSalary": {
+    "@type": "MonetaryAmount",
+    "currency": "NGN",
+    "value": {
+      "@type": "QuantitativeValue",
+      "minValue": 150000,
+      "maxValue": 250000,
+      "unitText": "MONTH"
+    }
+  },
+  "experienceRequirements": {
+    "@type": "OccupationalExperienceRequirements",
+    "monthsOfExperience": "3-5_years"
+  },
+  "directApply": true
+}
