@@ -201,25 +201,30 @@ router.get("/:id", async (req, res) => {
 
     let showContact = false;
     if (viewer) {
-      const clientId = viewer._id;
-      const companyId = viewer.companyId;
-
-      const acceptedRequests = await ServiceRequest.find({
-        professional: req.params.id,
-        status: { $in: ["accepted", "completed"] },
-      }).populate("client", "companyId");
-
-      const hasUnlock = acceptedRequests.some((r) => {
-        if (String(r.client?._id) === String(clientId)) return true;
-        if (!companyId) return false;
-        return (
-          String(r.companyId) === String(companyId) ||
-          String(r.client?.companyId) === String(companyId)
-        );
-      });
-
-      if (hasUnlock) {
+      // Admins can always see contact information
+      if (viewer.role === "admin") {
         showContact = true;
+      } else {
+        const clientId = viewer._id;
+        const companyId = viewer.companyId;
+
+        const acceptedRequests = await ServiceRequest.find({
+          professional: req.params.id,
+          status: { $in: ["accepted", "completed"] },
+        }).populate("client", "companyId");
+
+        const hasUnlock = acceptedRequests.some((r) => {
+          if (String(r.client?._id) === String(clientId)) return true;
+          if (!companyId) return false;
+          return (
+            String(r.companyId) === String(companyId) ||
+            String(r.client?.companyId) === String(companyId)
+          );
+        });
+
+        if (hasUnlock) {
+          showContact = true;
+        }
       }
     }
 

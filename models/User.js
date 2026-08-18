@@ -107,7 +107,7 @@ const userSchema =
       phoneVisibility: {
         type: String,
         enum: ["public", "on_request", "private"],
-        default: "private",
+        default: "on_request",
       },
       socialLinks: {
         linkedin: String,

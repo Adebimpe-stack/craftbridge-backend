@@ -956,8 +956,8 @@ router.put(
 // =======================
 router.put("/employers/:id/identity-contact", auth, requireRole("admin"), upload.single("profilePicture"), async (req, res) => {
   try {
-    const userFields = ["name", "email", "phone", "companyEmail", "linkedin"];
-    const companyFields = ["name", "location", "website", "linkedin"];
+    const userFields = ["name", "email", "phone", "companyEmail", "linkedin", "phoneVisibility"];
+    const companyFields = ["name", "location", "website", "linkedin", "phone"];
 
     const userUpdates = {};
     const companyUpdates = {};
@@ -1120,6 +1120,7 @@ router.get("/workers", auth, requireRole("admin"), async (req, res) => {
       obj.profileCompletion = profileCompletion;
       obj.isPubliclyEligible = isPubliclyEligible(w);
       obj.publicDirectoryStatusReasons = getPublicDirectoryIneligibilityReasons(w);
+      // Ensure admins can see phone numbers
       return obj;
     });
 
@@ -1736,6 +1737,7 @@ router.get("/verification/:id", auth, requireRole("admin"), async (req, res) => 
         name: user.name,
         email: user.email,
         phone: user.phone || "",
+        phoneVisibility: user.phoneVisibility || "on_request",
         location: user.location || "",
         role: user.role,
         createdAt: user.createdAt,
