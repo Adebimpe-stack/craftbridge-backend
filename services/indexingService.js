@@ -58,10 +58,23 @@ const submitUrlToIndexing = async (url, type = 'URL_UPDATED') => {
  * @param {string} type - 'URL_UPDATED' or 'URL_DELETED'
  */
 const submitJobForIndexing = async (jobId, type = 'URL_UPDATED') => {
-  const baseUrl = process.env.FRONTEND_URL || 'https://craftbridgejobs.com';
-  const jobUrl = `${baseUrl}/jobs/${jobId}`;
-  
-  return await submitUrlToIndexing(jobUrl, type);
+  try {
+    const Job = require('../models/Job');
+    const job = await Job.findById(jobId);
+    
+    if (!job) {
+      console.log(`Job ${jobId} not found, skipping indexing submission`);
+      return false;
+    }
+    
+    const baseUrl = process.env.FRONTEND_URL || 'https://craftbridgejobs.com';
+    const jobUrl = job.slug ? `${baseUrl}/jobs/${job.slug}` : `${baseUrl}/jobs/${jobId}`;
+    
+    return await submitUrlToIndexing(jobUrl, type);
+  } catch (error) {
+    console.error(`Error getting job for indexing: ${jobId}`, error);
+    return false;
+  }
 };
 
 /**

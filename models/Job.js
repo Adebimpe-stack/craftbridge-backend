@@ -30,6 +30,12 @@ const jobSchema = new mongoose.Schema(
       required: true,
     },
 
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
     category: {
       type: String,
       required: true,

@@ -16,6 +16,7 @@ const User =
 
 const { createNotification } = require("../services/notificationService");
 const { submitJobForIndexing } = require("../services/indexingService");
+const { generateSlug } = require("../utils/slugGenerator");
 
 const auth =
   require("../middleware/auth");
@@ -34,7 +35,7 @@ router.get("/sitemap.xml", async (req, res) => {
       isDeleted: false,
     })
       .populate("companyId", "isActive")
-      .select("_id updatedAt")
+      .select("slug updatedAt")
       .sort({ updatedAt: -1 });
 
     const baseUrl = process.env.FRONTEND_URL || "https://craftbridgejobs.com";
@@ -44,8 +45,8 @@ router.get("/sitemap.xml", async (req, res) => {
 `;
 
     jobs.forEach(job => {
-      if (job.companyId?.isActive !== false) {
-        const jobUrl = `${baseUrl}/jobs/${job._id}`;
+      if (job.companyId?.isActive !== false && job.slug) {
+        const jobUrl = `${baseUrl}/jobs/${job.slug}`;
         const lastMod = job.updatedAt ? job.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
         
         xml += `  <url>
@@ -190,6 +191,8 @@ const newJob =
     title:
       req.body.title,
 
+    slug: generateSlug(req.body.title, req.body.location, null), // Will be updated after save
+
     category:
       req.body.category,
 
@@ -235,6 +238,12 @@ const newJob =
   });
 
       const savedJob = await newJob.save();
+
+      // =========================
+      // GENERATE SLUG
+      // =========================
+      savedJob.slug = generateSlug(savedJob.title, savedJob.location, savedJob._id);
+      await savedJob.save();
 
       // =========================
       // TRACK COMPANY JOB POSTS
@@ -317,20 +326,30 @@ router.get(
 );
 
 // =========================
-// GET SINGLE JOB
+// GET SINGLE JOB (by ID or slug)
 // =========================
 
 router.get(
-  "/:id",
+  "/:identifier",
   async (req, res) => {
 
     try {
 
-      const job = await Job.findOne({
-        _id: req.params.id,
+      // Try to find by slug first, then by ID
+      let job = await Job.findOne({
+        slug: req.params.identifier,
         status: "active",
         isDeleted: false,
       }).populate("companyId", "name verificationStatus subscriptionActive isActive");
+
+      // If not found by slug, try by ID
+      if (!job) {
+        job = await Job.findOne({
+          _id: req.params.identifier,
+          status: "active",
+          isDeleted: false,
+        }).populate("companyId", "name verificationStatus subscriptionActive isActive");
+      }
 
       if (!job || job.companyId?.isActive === false) {
         return res.status(404).json({
