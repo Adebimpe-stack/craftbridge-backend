@@ -1935,6 +1935,37 @@ router.put("/employers/:id/organization-type", auth, requireRole("admin"), async
 });
 
 // =======================
+// BULK UPDATE PHONE VISIBILITY FOR EXISTING USERS
+// =======================
+router.post("/update-phone-visibility", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const usersWithPrivatePhone = await User.find({ phoneVisibility: 'private' });
+    let updatedCount = 0;
+
+    for (const user of usersWithPrivatePhone) {
+      user.phoneVisibility = 'on_request';
+      await user.save();
+      updatedCount++;
+    }
+
+    const usersWithoutVisibility = await User.find({ phoneVisibility: { $exists: false } });
+    for (const user of usersWithoutVisibility) {
+      user.phoneVisibility = 'on_request';
+      await user.save();
+      updatedCount++;
+    }
+
+    res.json({
+      message: `Updated phone visibility for ${updatedCount} users`,
+      updatedCount
+    });
+  } catch (err) {
+    console.error("Error updating phone visibility:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // CLEAR STALE POST-VERIFICATION UPDATE FLAGS
 // One-time cleanup for existing accounts that were verified before the
 // approval flow started clearing the flag automatically.
