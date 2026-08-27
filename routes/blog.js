@@ -87,15 +87,23 @@ router.get("/:slug", async (req, res) => {
 // =========================
 router.post("/", auth, requireAdmin, async (req, res) => {
   try {
-    const { title, excerpt, content, category, tags, featuredImage, inlineCallout, sidebarWidget, seoTitle, seoDescription } = req.body;
+    const { title, excerpt, content, category, tags, featuredImage, inlineCallout, sidebarWidget, status, seoTitle, seoDescription } = req.body;
 
     if (!title || !excerpt || !content) {
       return res.status(400).json({ message: "Title, excerpt, and content are required" });
     }
 
-    const slug = generateBlogSlug(title);
+    let slug = generateBlogSlug(title);
+    let existing = await Blog.findOne({ slug });
+    let counter = 2;
+    while (existing) {
+      slug = `${generateBlogSlug(title)}-${counter}`;
+      existing = await Blog.findOne({ slug });
+      counter++;
+    }
 
-    const blog = await Blog.create({
+    const publishStatus = status === "published" ? "published" : "draft";
+    const blogData = {
       title,
       slug,
       excerpt,
@@ -108,8 +116,14 @@ router.post("/", auth, requireAdmin, async (req, res) => {
       sidebarWidget: sidebarWidget || {},
       seoTitle,
       seoDescription,
-      status: "draft",
-    });
+      status: publishStatus,
+    };
+
+    if (publishStatus === "published") {
+      blogData.publishedAt = new Date();
+    }
+
+    const blog = await Blog.create(blogData);
 
     res.status(201).json({ message: "Blog created successfully", blog });
   } catch (err) {
