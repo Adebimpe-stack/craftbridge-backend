@@ -66,6 +66,12 @@ const serviceRequestRoutes =
 const businessApplicationRoutes =
   require("./routes/businessApplications");
 
+const blogRoutes =
+  require("./routes/blog");
+
+const blogCommentsRoutes =
+  require("./routes/blogComments");
+
 const employerNoteRoutes =
   require("./routes/employerNotes");
 
@@ -225,6 +231,10 @@ app.use("/api", paystackWebhookRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
 
 app.use("/api/business-applications", businessApplicationRoutes);
+
+app.use("/api/blog", blogRoutes);
+
+app.use("/api/blog-comments", blogCommentsRoutes);
 
 app.use("/api/employer-notes", employerNoteRoutes);
 
