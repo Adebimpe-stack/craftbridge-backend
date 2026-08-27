@@ -87,18 +87,31 @@ const notificationRoutes =
 
 app.use(helmet());
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "https://craftbridge-frontend.vercel.app",
-      "https://craftbridgejobs.com",
-      "https://www.craftbridgejobs.com",
-    ],
-    credentials: true,
-  })
-);
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://craftbridge-frontend.vercel.app",
+  "https://craftbridgejobs.com",
+  "https://www.craftbridgejobs.com",
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS not allowed for origin: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
 
 app.use("/api/paystack/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "1mb" }));
