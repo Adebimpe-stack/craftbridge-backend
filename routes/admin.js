@@ -891,6 +891,8 @@ router.put(
     try {
       const allowedFields = [
         "name",
+        "firstName",
+        "lastName",
         "description",
         "industry",
         "companySize",
@@ -903,7 +905,9 @@ router.put(
       const profileUpdates = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
-          profileUpdates[field] = req.body[field];
+          let value = req.body[field];
+          if (typeof value === "string") value = value.trim();
+          profileUpdates[field] = value;
         }
       }
 
@@ -933,6 +937,8 @@ router.put(
     // Keep the legacy User record in sync for backfilled directory listings
     const userUpdates = {};
     if (profileUpdates.name) userUpdates.name = profileUpdates.name;
+    if (profileUpdates.firstName) userUpdates.firstName = profileUpdates.firstName;
+    if (profileUpdates.lastName) userUpdates.lastName = profileUpdates.lastName;
     if (profileUpdates.location) userUpdates.location = profileUpdates.location;
     if (profileUpdates.website) userUpdates.website = profileUpdates.website;
     if (profileUpdates.linkedin) userUpdates.linkedin = profileUpdates.linkedin;
@@ -956,8 +962,8 @@ router.put(
 // =======================
 router.put("/employers/:id/identity-contact", auth, requireRole("admin"), upload.single("profilePicture"), async (req, res) => {
   try {
-    const userFields = ["name", "email", "phone", "companyEmail", "linkedin", "phoneVisibility"];
-    const companyFields = ["name", "location", "website", "linkedin", "phone"];
+    const userFields = ["name", "firstName", "lastName", "email", "phone", "companyEmail", "linkedin", "phoneVisibility"];
+    const companyFields = ["name", "firstName", "lastName", "location", "website", "linkedin", "phone"];
 
     const userUpdates = {};
     const companyUpdates = {};
@@ -1208,7 +1214,7 @@ router.put(
     }
 
     const allowedFields = [
-      "name", "headline", "primaryTrade", "category", "skills", "experienceYears",
+      "name", "firstName", "lastName", "headline", "primaryTrade", "category", "skills", "experienceYears",
       "availability", "bio", "city", "state", "country", "location", "resumeUrl",
       "website", "linkedin", "github", "certifications", "languages", "profilePicture"
     ];
@@ -1309,6 +1315,8 @@ router.put("/workers/:id/public-directory", auth, requireRole("admin"), async (r
 
     const {
       name,
+      firstName,
+      lastName,
       primaryTrade,
       city,
       state,
@@ -1332,6 +1340,9 @@ router.put("/workers/:id/public-directory", auth, requireRole("admin"), async (r
       primaryTrade: String(primaryTrade).trim(),
       availability: String(availability).trim(),
     };
+
+    if (firstName !== undefined) update.firstName = String(firstName).trim();
+    if (lastName !== undefined) update.lastName = String(lastName).trim();
 
     if (city !== undefined) update.city = String(city).trim();
     if (state !== undefined) update.state = String(state).trim();
@@ -1373,7 +1384,7 @@ router.put(
       if (!user) return res.status(404).json({ message: "User not found" });
 
       const allowedFields = [
-        "name", "email", "phone", "profilePicture", "bio", "headline",
+        "name", "firstName", "lastName", "email", "phone", "profilePicture", "bio", "headline",
         "location", "city", "state", "country", "website", "linkedin", "github"
       ];
 
@@ -1399,7 +1410,7 @@ router.put(
           if (!value) return res.status(400).json({ message: "Name cannot be empty" });
         }
 
-        if (["bio", "headline", "location", "city", "state", "country", "phone"].includes(key)) {
+        if (["bio", "headline", "location", "city", "state", "country", "phone", "firstName", "lastName"].includes(key)) {
           value = String(value).trim();
         }
 
@@ -1437,6 +1448,8 @@ router.put(
         if (company) {
           const companyUpdate = {};
           if (update.name) companyUpdate.name = update.name;
+          if (update.firstName) companyUpdate.firstName = update.firstName;
+          if (update.lastName) companyUpdate.lastName = update.lastName;
           if (update.location) companyUpdate.location = update.location;
           if (update.website) companyUpdate.website = update.website;
           if (update.linkedin) companyUpdate.linkedin = update.linkedin;

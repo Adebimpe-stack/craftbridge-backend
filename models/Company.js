@@ -8,6 +8,18 @@ const companySchema = new mongoose.Schema(
       trim: true,
     },
 
+    firstName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    lastName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     description: {
       type: String,
       default: "",
