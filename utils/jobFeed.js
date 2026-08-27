@@ -9,18 +9,22 @@
 // carries the same data as JSON-LD.
 // =========================
 
+const { stripInvalidChars } = require("./xmlValidate");
+
 const DEFAULT_COUNTRY = "Nigeria";
 const DEFAULT_CURRENCY = "NGN";
 
 // Aggregators expect plain text or HTML inside CDATA, never escaped markup, so
-// only the CDATA terminator has to be neutralised.
+// only the CDATA terminator has to be neutralised. Control characters are
+// dropped first: CDATA does not protect them and they make the feed
+// unparseable.
 const cdata = (value) => {
-  const text = value === null || value === undefined ? "" : String(value);
+  const text = stripInvalidChars(value);
   return `<![CDATA[${text.replace(/\]\]>/g, "]]]]><![CDATA[>")}]]>`;
 };
 
 const escapeXml = (value) =>
-  String(value === null || value === undefined ? "" : value)
+  stripInvalidChars(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -31,9 +35,9 @@ const escapeXml = (value) =>
 // reject a job when a recognised element is present but empty.
 const tag = (name, value, { raw = false } = {}) => {
   if (value === null || value === undefined) return "";
-  const text = String(value).trim();
+  const text = stripInvalidChars(value).trim();
   if (!text) return "";
-  return `      <${name}>${raw ? text : cdata(text)}</${name}>\n`;
+  return `      <${name}>${raw ? escapeXml(text) : cdata(text)}</${name}>\n`;
 };
 
 // Aggregators want date-only or RFC-822 style stamps, not ISO 8601 with
@@ -122,18 +126,33 @@ const employmentType = (type) =>
 
 const isRemote = (job) => String(job.workMode || "").toLowerCase() === "remote";
 
+// Adzuna and Jobrapido split employment into "what kind of contract" and "how
+// many hours", which the single `type` field has to be projected onto.
+const contractType = (type) =>
+  ["contract", "contractor", "freelance", "temporary"].includes(
+    String(type || "").toLowerCase()
+  )
+    ? "contract"
+    : "permanent";
+
+const contractTime = (type) =>
+  String(type || "").toLowerCase().replace(/[\s-]/g, "") === "parttime"
+    ? "part_time"
+    : "full_time";
+
 // The description must be self-contained: aggregators show only what the feed
 // carries, not the job page.
 // The markup is not escaped because it is emitted inside CDATA, and JSON-LD
 // encodes it on its own.
 const buildDescription = (job) => {
-  const sections = [`<p>${job.description || ""}</p>`];
+  const clean = (value) => stripInvalidChars(value).trim();
+  const sections = [`<p>${clean(job.description)}</p>`];
 
-  if (job.requirements) {
-    sections.push(`<h3>Requirements</h3><p>${job.requirements}</p>`);
+  if (clean(job.requirements)) {
+    sections.push(`<h3>Requirements</h3><p>${clean(job.requirements)}</p>`);
   }
-  if (job.benefits) {
-    sections.push(`<h3>Benefits</h3><p>${job.benefits}</p>`);
+  if (clean(job.benefits)) {
+    sections.push(`<h3>Benefits</h3><p>${clean(job.benefits)}</p>`);
   }
 
   return sections.join("");
@@ -145,22 +164,39 @@ const buildJobElement = (job, { frontendUrl }) => {
   const salary = parseSalary(job.salary);
   const url = `${frontendUrl}/jobs/${job._id}`;
 
+  const description = buildDescription(job);
+
   return (
     "    <job>\n" +
     tag("title", job.title) +
+    // Jooble reads <name> rather than <title>.
+    tag("name", job.title) +
     tag("date", feedDate(job.createdAt)) +
+    // Jooble/Jobrapido use <pubdate>, Adzuna uses <posted>.
+    tag("pubdate", feedDate(job.createdAt)) +
+    tag("posted", feedDate(job.createdAt)) +
     tag("referencenumber", job._id) +
     tag("requisitionid", job._id) +
+    // Jooble/Adzuna use <id>, Careerjet uses <ref>.
+    tag("id", job._id) +
+    tag("ref", job._id) +
     tag("url", url) +
     tag("applyurl", url) +
+    // Jooble/Jobrapido use <link>.
+    tag("link", url) +
     tag("company", company.name || "CraftBridge Employer") +
     tag("companylogo", company.logo) +
+    tag("logo", company.logo) +
     tag("companyurl", company.website) +
     tag("sourcename", "CraftBridge Jobs") +
     tag("city", city) +
     tag("state", state) +
+    // Jooble/Jobrapido/Adzuna call the state <region>.
+    tag("region", state || city) +
     tag("country", country) +
     tag("location", job.location) +
+    // Careerjet accepts a single <locations> string.
+    tag("locations", job.location) +
     tag("remote", isRemote(job) ? "Yes" : "No") +
     tag("telecommute", isRemote(job) ? "1" : "0") +
     tag("workmode", job.workMode) +
@@ -168,15 +204,23 @@ const buildJobElement = (job, { frontendUrl }) => {
     tag("field", job.field) +
     tag("jobtype", job.type) +
     tag("employmenttype", employmentType(job.type)) +
+    // Adzuna/Jobrapido split employment into contract kind and hours.
+    tag("contract", contractType(job.type)) +
+    tag("contract_type", contractType(job.type)) +
+    tag("contract_time", contractTime(job.type)) +
     tag("experience", job.experienceLevel) +
     tag("vacancies", job.vacancies) +
     tag("salary", salary.text) +
     tag("salarymin", salary.min) +
     tag("salarymax", salary.max) +
+    tag("salary_min", salary.min) +
+    tag("salary_max", salary.max) +
     tag("salaryperiod", salary.text ? salary.period : "") +
     tag("currency", salary.text ? DEFAULT_CURRENCY : "") +
     tag("expirationdate", isoDate(job.applicationDeadline)) +
-    tag("description", buildDescription(job)) +
+    // Jooble names the expiry <expire>.
+    tag("expire", isoDate(job.applicationDeadline)) +
+    tag("description", description) +
     "    </job>\n"
   );
 };
@@ -184,7 +228,10 @@ const buildJobElement = (job, { frontendUrl }) => {
 // =========================
 // FEED
 // =========================
-const buildJobFeedXml = (jobs, { frontendUrl, publisherName = "CraftBridge Jobs" }) => {
+const buildJobFeedXml = (
+  jobs,
+  { frontendUrl, publisherName = "CraftBridge Jobs", generatedAt = new Date() }
+) => {
   const body = jobs
     .map((job) => buildJobElement(job, { frontendUrl }))
     .join("");
@@ -194,7 +241,7 @@ const buildJobFeedXml = (jobs, { frontendUrl, publisherName = "CraftBridge Jobs"
     "<source>\n" +
     `  <publisher>${escapeXml(publisherName)}</publisher>\n` +
     `  <publisherurl>${escapeXml(frontendUrl)}</publisherurl>\n` +
-    `  <lastBuildDate>${escapeXml(feedDate(new Date()))}</lastBuildDate>\n` +
+    `  <lastBuildDate>${escapeXml(feedDate(generatedAt))}</lastBuildDate>\n` +
     `  <totaljobs>${jobs.length}</totaljobs>\n` +
     "  <jobs>\n" +
     body +
@@ -216,7 +263,7 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
   const jsonLd = {
     "@context": "https://schema.org/",
     "@type": "JobPosting",
-    title: job.title,
+    title: stripInvalidChars(job.title).trim(),
     description: buildDescription(job),
     identifier: {
       "@type": "PropertyValue",
@@ -277,8 +324,36 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
   return jsonLd;
 };
 
+// =========================
+// SITEMAP
+// Google discovers and re-crawls job pages through the sitemap, so it is built
+// from exactly the same set of jobs as the feed.
+// =========================
+const buildJobSitemapXml = (jobs, { frontendUrl }) => {
+  const urls = jobs
+    .map((job) => {
+      const lastmod = isoDate(job.updatedAt || job.createdAt);
+      return (
+        "  <url>\n" +
+        `    <loc>${escapeXml(`${frontendUrl}/jobs/${job._id}`)}</loc>\n` +
+        (lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : "") +
+        "    <changefreq>daily</changefreq>\n" +
+        "  </url>\n"
+      );
+    })
+    .join("");
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls +
+    "</urlset>\n"
+  );
+};
+
 module.exports = {
   buildJobFeedXml,
+  buildJobSitemapXml,
   buildJobPostingJsonLd,
   splitLocation,
   parseSalary,
