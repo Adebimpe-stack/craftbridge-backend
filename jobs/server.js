@@ -39,7 +39,7 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
 
-app.options("*", cors(corsOptions));
+app.options("/{*splat}", cors(corsOptions));
 app.use(cors(corsOptions));
 
 /* =========================

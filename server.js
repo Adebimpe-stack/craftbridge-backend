@@ -110,7 +110,7 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
-app.options("*", cors(corsOptions));
+app.options("/{*splat}", cors(corsOptions));
 app.use(cors(corsOptions));
 
 app.use("/api/paystack/webhook", express.raw({ type: "application/json" }));
