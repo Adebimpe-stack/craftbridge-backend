@@ -1,9 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/auth");
+const upload = require("../middleware/upload");
 const Blog = require("../models/Blog");
 const User = require("../models/User");
 const { generateBlogSlug } = require("../utils/blogSlugGenerator");
+
+const parseField = (value) => {
+  if (typeof value !== "string" || !value.trim()) return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const parseTags = (tags) => {
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === "string" && tags.trim()) {
+    return tags.split(",").map((tag) => tag.trim()).filter(Boolean);
+  }
+  return [];
+};
 
 // Middleware to check if user is admin
 const requireAdmin = (req, res, next) => {
@@ -85,7 +103,7 @@ router.get("/:slug", async (req, res) => {
 // ADMIN: CREATE BLOG
 // POST /api/blog
 // =========================
-router.post("/", auth, requireAdmin, async (req, res) => {
+router.post("/", auth, requireAdmin, upload.single("featuredImage"), async (req, res) => {
   try {
     const { title, excerpt, content, category, tags, featuredImage, inlineCallout, sidebarWidget, status, seoTitle, seoDescription } = req.body;
 
@@ -109,11 +127,11 @@ router.post("/", auth, requireAdmin, async (req, res) => {
       excerpt,
       content,
       category: category || "technical",
-      tags: tags || [],
-      featuredImage: featuredImage || "",
+      tags: parseTags(tags),
+      featuredImage: req.file ? req.file.location : (featuredImage || ""),
       author: req.user._id,
-      inlineCallout: inlineCallout || {},
-      sidebarWidget: sidebarWidget || {},
+      inlineCallout: parseField(inlineCallout) || {},
+      sidebarWidget: parseField(sidebarWidget) || {},
       seoTitle,
       seoDescription,
       status: publishStatus,
@@ -136,7 +154,7 @@ router.post("/", auth, requireAdmin, async (req, res) => {
 // ADMIN: UPDATE BLOG
 // PUT /api/blog/:id
 // =========================
-router.put("/:id", auth, requireAdmin, async (req, res) => {
+router.put("/:id", auth, requireAdmin, upload.single("featuredImage"), async (req, res) => {
   try {
     const { title, excerpt, content, category, tags, featuredImage, inlineCallout, sidebarWidget, status, seoTitle, seoDescription } = req.body;
 
@@ -144,6 +162,9 @@ router.put("/:id", auth, requireAdmin, async (req, res) => {
     if (!blog) {
       return res.status(404).json({ message: "Blog post not found" });
     }
+
+    const parsedInlineCallout = inlineCallout ? (parseField(inlineCallout) || {}) : undefined;
+    const parsedSidebarWidget = sidebarWidget ? (parseField(sidebarWidget) || {}) : undefined;
 
     // Update slug if title changed
     if (title && title !== blog.title) {
@@ -154,10 +175,11 @@ router.put("/:id", auth, requireAdmin, async (req, res) => {
     if (excerpt) blog.excerpt = excerpt;
     if (content) blog.content = content;
     if (category) blog.category = category;
-    if (tags) blog.tags = tags;
-    if (featuredImage !== undefined) blog.featuredImage = featuredImage;
-    if (inlineCallout) blog.inlineCallout = { ...blog.inlineCallout, ...inlineCallout };
-    if (sidebarWidget) blog.sidebarWidget = { ...blog.sidebarWidget, ...sidebarWidget };
+    if (tags) blog.tags = parseTags(tags);
+    if (req.file) blog.featuredImage = req.file.location;
+    else if (featuredImage !== undefined) blog.featuredImage = featuredImage;
+    if (parsedInlineCallout) blog.inlineCallout = { ...blog.inlineCallout, ...parsedInlineCallout };
+    if (parsedSidebarWidget) blog.sidebarWidget = { ...blog.sidebarWidget, ...parsedSidebarWidget };
     if (status) {
       blog.status = status;
       if (status === "published" && !blog.publishedAt) {
