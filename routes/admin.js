@@ -1,4 +1,5 @@
 const express = require("express");
+const { randomBytes } = require("crypto");
 const router = express.Router();
 
 const auth = require("../middleware/auth");
@@ -2052,6 +2053,55 @@ router.get("/professionals-for-spotlight", auth, requireRole("admin"), async (re
   } catch (err) {
     console.error("professionals-for-spotlight error:", err.message);
     res.status(500).json({ message: err.message });
+  }
+});
+
+// =========================
+// ADMIN: ASSIGN MISSING USER/FIRM IDS
+// POST /api/admin/assign-ids
+// One-click backfill of userId and firmId for existing records.
+// =========================
+const generateUniqueId = async (prefix, model, field) => {
+  let id;
+  let exists = true;
+  while (exists) {
+    id = `${prefix}-${randomBytes(4).toString("hex").toUpperCase()}`;
+    exists = await model.exists({ [field]: id });
+  }
+  return id;
+};
+
+router.post("/assign-ids", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const usersMissing = await User.find({
+      $or: [{ userId: { $exists: false } }, { userId: null }, { userId: "" }],
+    });
+    const companiesMissing = await Company.find({
+      $or: [{ firmId: { $exists: false } }, { firmId: null }, { firmId: "" }],
+    });
+
+    let usersUpdated = 0;
+    for (const user of usersMissing) {
+      const userId = await generateUniqueId("CBP", User, "userId");
+      await User.findByIdAndUpdate(user._id, { userId }, { runValidators: false });
+      usersUpdated++;
+    }
+
+    let companiesUpdated = 0;
+    for (const company of companiesMissing) {
+      const firmId = await generateUniqueId("CBF", Company, "firmId");
+      await Company.findByIdAndUpdate(company._id, { firmId }, { runValidators: false });
+      companiesUpdated++;
+    }
+
+    res.json({
+      message: "IDs assigned successfully",
+      usersUpdated,
+      companiesUpdated,
+    });
+  } catch (err) {
+    console.error("ASSIGN IDS ERROR:", err);
+    res.status(500).json({ message: "Failed to assign IDs" });
   }
 });
 
