@@ -109,6 +109,7 @@ router.get("/", async (req, res) => {
     pipeline.push({
       $project: {
         _id: 1,
+        userId: 1,
         name: 1,
         profilePicture: 1,
         profileImage: 1,

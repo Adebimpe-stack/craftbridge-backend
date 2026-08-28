@@ -1,7 +1,26 @@
 const mongoose = require("mongoose");
+const { randomBytes } = require("crypto");
+
+const generateFirmId = async (model) => {
+  let id;
+  let exists = true;
+  while (exists) {
+    id = `CBF-${randomBytes(4).toString("hex").toUpperCase()}`;
+    exists = await model.exists({ firmId: id });
+  }
+  return id;
+};
 
 const companySchema = new mongoose.Schema(
   {
+    firmId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      uppercase: true,
+    },
+
     name: {
       type: String,
       required: true,
@@ -256,6 +275,13 @@ companySchema.index({ subscriptionActive: 1 });
 companySchema.index({ subscriptionExpiry: 1 });
 companySchema.index({ subscriptionActive: 1, subscriptionExpiry: 1 });
 companySchema.index({ verificationStatus: 1, isActive: 1, isDeleted: 1, organizationType: 1 });
+
+companySchema.pre("save", async function (next) {
+  if (this.isNew && !this.firmId) {
+    this.firmId = await generateFirmId(mongoose.model("Company"));
+  }
+  next();
+});
 
 companySchema.virtual("age").get(function () {
   return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));

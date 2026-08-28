@@ -1,10 +1,30 @@
 const mongoose =
   require("mongoose");
 
+const { randomBytes } = require("crypto");
+
+const generateUserId = async (model) => {
+  let id;
+  let exists = true;
+  while (exists) {
+    id = `CBP-${randomBytes(4).toString("hex").toUpperCase()}`;
+    exists = await model.exists({ userId: id });
+  }
+  return id;
+};
+
 const userSchema =
   new mongoose.Schema(
 
     {
+
+      userId: {
+        type: String,
+        unique: true,
+        sparse: true,
+        trim: true,
+        uppercase: true,
+      },
 
       name: {
         type: String,
@@ -425,6 +445,13 @@ companyRole: {
     }
 
   );
+
+userSchema.pre("save", async function (next) {
+  if (this.isNew && !this.userId) {
+    this.userId = await generateUserId(mongoose.model("User"));
+  }
+  next();
+});
 
 userSchema.index({ role: 1, createdAt: -1 });
 
