@@ -18,6 +18,9 @@ const mongoose =
 const app =
   express();
 
+const assignMissingIds =
+  require("./utils/assignMissingIds");
+
 const adminRoutes =
   require("./routes/admin");
 
@@ -141,6 +144,11 @@ let dbReady = false;
 mongoose.connection.on("connected", () => {
   dbReady = true;
   console.log("MongoDB Connected ✅");
+});
+
+mongoose.connection.once("connected", () => {
+  console.log("Backfilling missing user/firm IDs...");
+  setTimeout(() => assignMissingIds(), 1000);
 });
 
 mongoose.connection.on("disconnected", () => {
