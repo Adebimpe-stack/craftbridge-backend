@@ -141,14 +141,16 @@ app.use("/api/partnerships", partnershipReviewRoutes);
 let dbReady = false;
 
 // Mongoose connection event listeners
+let idsBackfilled = false;
+
 mongoose.connection.on("connected", () => {
   dbReady = true;
   console.log("MongoDB Connected ✅");
-});
-
-mongoose.connection.once("connected", () => {
-  console.log("Backfilling missing user/firm IDs...");
-  setTimeout(() => assignMissingIds(), 1000);
+  if (!idsBackfilled) {
+    idsBackfilled = true;
+    console.log("Backfilling missing user/firm IDs...");
+    setTimeout(() => assignMissingIds(), 1000);
+  }
 });
 
 mongoose.connection.on("disconnected", () => {
