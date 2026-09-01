@@ -188,7 +188,6 @@ router.get("/sitemap.xml", async (req, res) => {
     jobs.forEach(job => {
       if (job.companyId?.isActive !== false && job.slug) {
         const jobUrl = `${baseUrl}/jobs/${job.slug}`;
-        const seoUrl = `${process.env.API_ORIGIN || "https://api.craftbridgejobs.com"}/api/jobs/${job._id}/seo-html`;
         const lastMod = job.updatedAt ? job.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
         xml += `  <url>
@@ -196,12 +195,6 @@ router.get("/sitemap.xml", async (req, res) => {
     <lastmod>${lastMod}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${seoUrl}</loc>
-    <lastmod>${lastMod}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
   </url>
 `;
       }
