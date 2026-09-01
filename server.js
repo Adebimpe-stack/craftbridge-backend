@@ -84,6 +84,9 @@ const dashboardRoutes =
 const notificationRoutes =
   require("./routes/notifications");
 
+const robotsRoutes =
+  require("./routes/robots");
+
 // ==============================
 // MIDDLEWARE
 // ==============================
@@ -264,6 +267,8 @@ app.use("/api/employer-notes", employerNoteRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
+app.use("/robots.txt", robotsRoutes);
 
 app.use("/api/admin", adminRoutes);
 

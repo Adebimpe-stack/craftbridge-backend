@@ -26,6 +26,147 @@ const upload = require("../middleware/upload");
 const { body, validationResult } = require("express-validator");
 
 // =========================
+// GET SEO-OPTIMIZED JOB PAGE HTML
+// GET /api/jobs/:id/seo-html
+// Serves HTML with JSON-LD for crawlers
+// =========================
+router.get("/:id/seo-html", async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id)
+      .populate("companyId", "name logo verificationStatus isActive");
+
+    if (!job || job.status !== "active" || job.isDeleted) {
+      return res.status(404).send("Job not found");
+    }
+
+    if (job.companyId?.isActive === false) {
+      return res.status(404).send("Job not found");
+    }
+
+    const employmentTypeMap = {
+      "Full-time": "FULL_TIME",
+      "Part-time": "PART_TIME",
+      "Contract": "CONTRACTOR",
+      "Temporary": "TEMPORARY",
+      "Internship": "INTERN",
+      "Volunteer": "VOLUNTEER",
+    };
+
+    const getJobLocationType = (workMode) => {
+      switch (workMode) {
+        case "Remote": return "TELECOMMUTE";
+        case "Hybrid": return "HYBRID";
+        default: return null;
+      }
+    };
+
+    const formatDate = (date) => {
+      if (!date) return null;
+      return new Date(date).toISOString().split('T')[0];
+    };
+
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "JobPosting",
+      "title": job.title,
+      "description": job.description,
+      "datePosted": formatDate(job.createdAt),
+      "validThrough": job.applicationDeadline ? formatDate(job.applicationDeadline) : null,
+      "employmentType": employmentTypeMap[job.type] || "FULL_TIME",
+      "hiringOrganization": {
+        "@type": "Organization",
+        "name": job.companyName || "Confidential",
+      },
+      "jobLocation": {
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": job.location || "Nigeria",
+          "addressCountry": "NG"
+        }
+      },
+      "applicantLocationRequirements": {
+        "@type": "Country",
+        "name": "NG"
+      }
+    };
+
+    const jobLocationType = getJobLocationType(job.workMode);
+    if (jobLocationType) {
+      schema.jobLocationType = jobLocationType;
+    }
+
+    if (job.salary) {
+      const salaryMatch = job.salary.match(/([₦$]?\s*[\d,]+)\s*[-–]\s*([₦$]?\s*[\d,]+)/);
+      if (salaryMatch) {
+        const minSalary = parseInt(salaryMatch[1].replace(/[₦$,]/g, '').replace(/,/g, ''));
+        const maxSalary = parseInt(salaryMatch[2].replace(/[₦$,]/g, '').replace(/,/g, ''));
+        if (!isNaN(minSalary) && !isNaN(maxSalary)) {
+          schema.baseSalary = {
+            "@type": "MonetaryAmount",
+            "currency": "NGN",
+            "value": {
+              "@type": "QuantitativeValue",
+              "minValue": minSalary,
+              "maxValue": maxSalary,
+              "unitText": "MONTH"
+            }
+          };
+        }
+      }
+    }
+
+    if (job.experienceLevel) {
+      const experienceMap = {
+        "Entry Level": "no_experience",
+        "Mid Level": "1-3_years",
+        "Senior Level": "3-5_years",
+        "Executive": "5-10_years",
+      };
+      schema.experienceRequirements = {
+        "@type": "OccupationalExperienceRequirements",
+        "monthsOfExperience": experienceMap[job.experienceLevel] || null
+      };
+    }
+
+    schema.directApply = true;
+    const baseUrl = process.env.FRONTEND_URL || "https://craftbridgejobs.com";
+    schema.url = `${baseUrl}/jobs/${job.slug || job._id}`;
+
+    Object.keys(schema).forEach(key => {
+      if (schema[key] === null) delete schema[key];
+    });
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${job.title} | ${job.companyName || "CraftBridge"}</title>
+  <meta name="description" content="${job.description?.substring(0, 160)}" />
+  <link rel="canonical" href="${schema.url}" />
+  <script type="application/ld+json">
+    ${JSON.stringify(schema)}
+  </script>
+</head>
+<body>
+  <h1>${job.title}</h1>
+  <p>Company: ${job.companyName || "Confidential"}</p>
+  <p>Location: ${job.location}</p>
+  <p>Type: ${job.type}</p>
+  <p><a href="${schema.url}">View full job details on CraftBridge</a></p>
+</body>
+</html>`;
+
+    res.set('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    console.error("SEO HTML generation error:", error);
+    res.status(500).send("Error generating SEO HTML");
+  }
+});
+
+// =========================
 // GENERATE SITEMAP
 // =========================
 router.get("/sitemap.xml", async (req, res) => {
@@ -47,13 +188,20 @@ router.get("/sitemap.xml", async (req, res) => {
     jobs.forEach(job => {
       if (job.companyId?.isActive !== false && job.slug) {
         const jobUrl = `${baseUrl}/jobs/${job.slug}`;
+        const seoUrl = `${process.env.API_ORIGIN || "https://api.craftbridgejobs.com"}/api/jobs/${job._id}/seo-html`;
         const lastMod = job.updatedAt ? job.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-        
+
         xml += `  <url>
     <loc>${jobUrl}</loc>
     <lastmod>${lastMod}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${seoUrl}</loc>
+    <lastmod>${lastMod}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
   </url>
 `;
       }
