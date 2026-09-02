@@ -4,7 +4,9 @@
  */
 
 function generateSlug(title, location, id) {
-  if (!title) return `job-${id}`;
+  const suffix = id ? String(id).slice(-6) : Date.now().toString(36);
+
+  if (!title) return `job-${suffix}`;
   
   // Convert to lowercase and replace spaces with hyphens
   let slug = title
@@ -29,7 +31,7 @@ function generateSlug(title, location, id) {
   }
   
   // Add unique identifier to ensure uniqueness
-  slug = `${slug}-${id.toString().slice(-6)}`;
+  slug = `${slug}-${suffix}`;
   
   return slug;
 }

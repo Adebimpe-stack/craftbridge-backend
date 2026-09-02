@@ -332,8 +332,6 @@ const newJob =
     title:
       req.body.title,
 
-    slug: generateSlug(req.body.title, req.body.location, null), // Will be updated after save
-
     category:
       req.body.category,
 
@@ -378,13 +376,9 @@ const newJob =
 
   });
 
-      const savedJob = await newJob.save();
+      newJob.slug = generateSlug(newJob.title, newJob.location, newJob._id);
 
-      // =========================
-      // GENERATE SLUG
-      // =========================
-      savedJob.slug = generateSlug(savedJob.title, savedJob.location, savedJob._id);
-      await savedJob.save();
+      const savedJob = await newJob.save();
 
       // =========================
       // TRACK COMPANY JOB POSTS
