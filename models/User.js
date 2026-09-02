@@ -446,11 +446,10 @@ companyRole: {
 
   );
 
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
   if (this.isNew && !this.userId) {
     this.userId = await generateUserId(mongoose.model("User"));
   }
-  next();
 });
 
 userSchema.index({ role: 1, createdAt: -1 });
