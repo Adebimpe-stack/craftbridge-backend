@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const { randomBytes } = require("crypto");
 
+// Callers routinely send "" for an unselected dropdown; the enum must treat that as absent.
+const blankToUndefined = (value) => (value === "" ? undefined : value);
+
 const generateFirmId = async (model) => {
   let id;
   let exists = true;
@@ -134,6 +137,7 @@ const companySchema = new mongoose.Schema(
     companySize: {
       type: String,
       enum: ["1-10", "11-50", "51-200", "201-500", "500+"],
+      set: blankToUndefined,
     },
 
     companyType: {
