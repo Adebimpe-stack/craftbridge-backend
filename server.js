@@ -20,6 +20,8 @@ const app =
 
 const assignMissingIds =
   require("./utils/assignMissingIds");
+const cleanupInvalidCompanySize =
+  require("./utils/cleanupInvalidCompanySize");
 
 const adminRoutes =
   require("./routes/admin");
@@ -156,6 +158,7 @@ mongoose.connection.on("connected", () => {
     idsBackfilled = true;
     console.log("Backfilling missing user/firm IDs...");
     setTimeout(() => assignMissingIds(), 1000);
+    setTimeout(() => cleanupInvalidCompanySize(), 1500);
   }
 });
 
