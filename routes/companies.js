@@ -14,8 +14,17 @@ const { sendInvitationEmail } = require("../services/emailService");
 // OPTIONAL AUTH HELPER
 // Attaches req.user if a valid token is provided, otherwise continues
 // =========================
+// Up to two portfolio images for the directory card; featured ones win.
+const previewWorkImages = (portfolio = []) =>
+  [...portfolio]
+    .filter((item) => item?.url && (item.type || "image") === "image")
+    .sort((a, b) => Number(!!b.isFeatured) - Number(!!a.isFeatured))
+    .slice(0, 2)
+    .map((item) => ({ url: item.url, caption: item.caption || item.title || "" }));
+
 const normalizeCompany = (company) => ({
   _id: company._id,
+  workImages: previewWorkImages(company.portfolio || []),
   name: company.name || "Unnamed Company",
   logo: company.logo || "",
   description: company.description || "",
