@@ -10,13 +10,17 @@ const TeamInvitation = require("../models/TeamInvitation");
 const Application = require("../models/Application");
 const { sendInvitationEmail } = require("../services/emailService");
 
-// Up to two portfolio images for the directory card; featured ones win.
+// Up to two portfolio items for the directory card; featured ones win.
 const previewWorkImages = (portfolio = []) =>
   [...portfolio]
-    .filter((item) => item?.url && (item.type || "image") === "image")
+    .filter((item) => item?.url)
     .sort((a, b) => Number(!!b.isFeatured) - Number(!!a.isFeatured))
     .slice(0, 2)
-    .map((item) => ({ url: item.url, caption: item.caption || item.title || "" }));
+    .map((item) => ({
+      url: item.url,
+      type: item.type || "image",
+      caption: item.caption || item.title || "",
+    }));
 
 const normalizeCompany = (company) => ({
   _id: company._id,
