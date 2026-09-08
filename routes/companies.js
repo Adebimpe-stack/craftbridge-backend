@@ -10,10 +10,6 @@ const TeamInvitation = require("../models/TeamInvitation");
 const Application = require("../models/Application");
 const { sendInvitationEmail } = require("../services/emailService");
 
-// =========================
-// OPTIONAL AUTH HELPER
-// Attaches req.user if a valid token is provided, otherwise continues
-// =========================
 // Up to two portfolio images for the directory card; featured ones win.
 const previewWorkImages = (portfolio = []) =>
   [...portfolio]
@@ -40,6 +36,10 @@ const normalizeCompany = (company) => ({
   organizationType: company.organizationType || "service_business",
 });
 
+// =========================
+// OPTIONAL AUTH HELPER
+// Attaches req.user if a valid token is provided, otherwise continues
+// =========================
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
