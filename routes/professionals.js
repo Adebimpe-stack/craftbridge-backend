@@ -126,6 +126,7 @@ router.get("/", async (req, res) => {
         skills: 1,
         profileCompletionScore: 1,
         createdAt: 1,
+        portfolio: 1,
       },
     });
 
