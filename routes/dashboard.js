@@ -132,16 +132,36 @@ router.get("/employer", auth, async (req, res) => {
           }
         : { client: owner.ownerId };
 
+    // Incoming enquiries: requests addressed to this company (or to the user
+    // directly when they also receive work as a professional).
+    const incomingConditions = [{ professional: user._id }];
+    if (user.companyId) {
+      incomingConditions.push({ business: user.companyId });
+    }
+    const incomingQuery = { $or: incomingConditions };
+
     // Job and application metrics for the employer/company.
     const jobQuery = owner.ownerType === "company"
       ? { companyId: owner.ownerId, isDeleted: false }
       : { createdBy: owner.ownerId, isDeleted: false };
 
-    const [totalRequests, accepted, completed, savedCount, completion, jobs, applications] =
+    const [
+      totalRequests,
+      accepted,
+      completed,
+      incomingPending,
+      incomingTotal,
+      savedCount,
+      completion,
+      jobs,
+      applications,
+    ] =
       await Promise.all([
         ServiceRequest.countDocuments(requestQuery),
         ServiceRequest.countDocuments({ ...requestQuery, status: "accepted" }),
         ServiceRequest.countDocuments({ ...requestQuery, status: "completed" }),
+        ServiceRequest.countDocuments({ ...incomingQuery, status: "pending" }),
+        ServiceRequest.countDocuments(incomingQuery),
         EmployerProfessionalNote.countDocuments({
           ...owner,
           isSaved: true,
@@ -158,6 +178,13 @@ router.get("/employer", auth, async (req, res) => {
 
     // Recent service requests.
     const recentServiceRequests = await ServiceRequest.find(requestQuery)
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("serviceType status createdAt")
+      .lean();
+
+    // Recent incoming enquiries, which is what the business dashboard shows.
+    const recentIncomingRequests = await ServiceRequest.find(incomingQuery)
       .sort({ createdAt: -1 })
       .limit(5)
       .select("serviceType status createdAt")
@@ -186,7 +213,11 @@ router.get("/employer", auth, async (req, res) => {
         total: totalRequests,
         accepted,
         completed,
+        pending: incomingPending,
+        new: incomingPending,
+        incomingTotal,
         recent: recentServiceRequests,
+        recentIncoming: recentIncomingRequests,
         remaining: remaining === Infinity ? -1 : remaining,
         unlimited: remaining === Infinity,
       },

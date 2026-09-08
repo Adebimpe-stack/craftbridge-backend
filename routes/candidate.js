@@ -101,6 +101,10 @@ req.user.id
   user.location =
     req.body.location || user.location;
 
+  if (req.body.phone !== undefined) {
+    user.phone = req.body.phone.trim();
+  }
+
   user.experienceYears =
     req.body.experienceYears ||
     user.experienceYears;
@@ -173,6 +177,7 @@ req.user.id
     req.user.id,
     {
       headline: user.headline,
+      phone: user.phone,
       location: user.location,
       experienceYears: user.experienceYears,
       bio: user.bio,

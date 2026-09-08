@@ -83,8 +83,9 @@ router.get("/users", auth, requireRole("admin"), async (req, res) => {
       const obj = u.toObject();
       if (u.role === "employer" && u.companyId) {
         const company = await Company.findById(u.companyId)
-          .select("verificationStatus verificationDocuments rejectionReason name");
+          .select("verificationStatus verificationDocuments rejectionReason name phone");
         if (company) {
+          obj.companyPhone = company.phone || "";
           obj.companyVerificationStatus = company.verificationStatus;
           obj.companyVerificationDocuments = (company.verificationDocuments || u.verificationDocuments || []).map((doc) =>
             typeof doc === "string" ? { url: doc, uploadedAt: null } : doc
@@ -252,8 +253,11 @@ router.get("/users/:id", auth, requireRole("admin"), async (req, res) => {
     const obj = user.toObject();
     if (user.companyId) {
       const company = await Company.findById(user.companyId)
-        .select("name verificationStatus verificationDocuments rejectionReason subscriptionActive subscriptionPlan businessType");
-      if (company) obj.company = company;
+        .select("name phone verificationStatus verificationDocuments rejectionReason subscriptionActive subscriptionPlan businessType");
+      if (company) {
+        obj.company = company;
+        obj.companyPhone = company.phone || "";
+      }
     }
     res.json(obj);
   } catch (err) {
@@ -741,10 +745,11 @@ router.get("/employers", auth, requireRole("admin"), async (req, res) => {
         const obj = emp.toObject();
         if (emp.companyId) {
           const company = await Company.findById(emp.companyId).select(
-            "name verificationStatus documentsApproved verificationDocuments rejectionReason subscriptionActive subscriptionPlan"
+            "name phone verificationStatus documentsApproved verificationDocuments rejectionReason subscriptionActive subscriptionPlan"
           );
           if (company) {
             obj.companyName = obj.companyName || company.name;
+            obj.companyPhone = company.phone || "";
             obj.verificationStatus = company.verificationStatus;
             obj.documentsApproved = company.documentsApproved;
             obj.verificationDocuments = (company.verificationDocuments || emp.verificationDocuments || []).map((doc) =>

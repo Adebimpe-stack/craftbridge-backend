@@ -11,6 +11,11 @@ const allowedVs = ["none", "pending", "verified", "rejected", "revoked", "info_r
 const allowedCompanyVs = ["none", "pending", "verified", "rejected", "revoked", "info_requested"];
 const allowedCompanySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
 
+// companySize is optional: an absent value is valid, "" and anything else is not.
+const invalidCompanySizeQuery = {
+  companySize: { $nin: [...allowedCompanySizes, null] },
+};
+
 async function audit() {
   const invalidWorkerStatus = await User.find({
     role: "jobseeker",
@@ -25,9 +30,9 @@ async function audit() {
     verificationStatus: { $nin: allowedCompanyVs },
   }).select("_id name owner verificationStatus");
 
-  const invalidCompanySizes = await Company.find({
-    companySize: { $nin: allowedCompanySizes },
-  }).select("_id name owner companySize");
+  const invalidCompanySizes = await Company.find(invalidCompanySizeQuery).select(
+    "_id name owner companySize"
+  );
 
   return {
     workerVerificationStatus: {
@@ -86,8 +91,8 @@ async function migrate() {
   );
 
   const companySizeResult = await Company.updateMany(
-    { companySize: { $nin: allowedCompanySizes } },
-    { $set: { companySize: "" } },
+    invalidCompanySizeQuery,
+    { $unset: { companySize: "" } },
     { runValidators: false }
   );
 
