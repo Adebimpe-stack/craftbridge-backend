@@ -15,11 +15,28 @@ const DEFAULT_COUNTRY = "Nigeria";
 
 // Google for Jobs expects an ISO 3166-1 alpha-2 code, while the aggregator
 // feeds take the plain country name.
-const COUNTRY_CODES = { nigeria: "NG", ghana: "GH", kenya: "KE" };
+const COUNTRY_CODES = {
+  nigeria: "NG",
+  ghana: "GH",
+  kenya: "KE",
+  "united states": "US",
+  usa: "US",
+};
 const countryCode = (country) =>
   COUNTRY_CODES[String(country).trim().toLowerCase()] || country;
 
 const DEFAULT_CURRENCY = "NGN";
+
+// Salary is free text, so the currency is taken from its symbol/code and only
+// falls back to the country's when neither is present.
+const currencyFor = (salaryText, country) => {
+  const text = String(salaryText || "");
+  if (/₦|\bNGN\b/i.test(text)) return "NGN";
+  if (/\$|\bUSD\b/i.test(text)) return "USD";
+  if (/£|\bGBP\b/i.test(text)) return "GBP";
+  if (/€|\bEUR\b/i.test(text)) return "EUR";
+  return countryCode(country) === "US" ? "USD" : DEFAULT_CURRENCY;
+};
 
 // Aggregators expect plain text or HTML inside CDATA, never escaped markup, so
 // only the CDATA terminator has to be neutralised. Control characters are
@@ -65,6 +82,29 @@ const isoDate = (date) => {
   return d.toISOString().split("T")[0];
 };
 
+// Jobs are posted without a country ("Ripon, Wisconsin", "Johnson City, TN
+// 37604"), so a US state in the second element is what identifies the country;
+// otherwise the platform's home country is assumed.
+const US_STATES = new Set([
+  "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+  "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+  "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine",
+  "maryland", "massachusetts", "michigan", "minnesota", "mississippi",
+  "missouri", "montana", "nebraska", "nevada", "new hampshire", "new jersey",
+  "new mexico", "new york", "north carolina", "north dakota", "ohio",
+  "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina",
+  "south dakota", "tennessee", "texas", "utah", "vermont", "virginia",
+  "washington", "west virginia", "wisconsin", "wyoming",
+  "al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il",
+  "in", "ia", "ks", "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt",
+  "ne", "nv", "nh", "nj", "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri",
+  "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi", "wy", "dc",
+]);
+
+// "TN 37604" -> "TN": the ZIP belongs to the postal code, not the region.
+const stripZip = (value) =>
+  String(value).replace(/\s+\d{5}(-\d{4})?$/, "").trim();
+
 // "Ikeja, Lagos, Nigeria" or "Lagos" — split into the city/state/country
 // elements aggregators index on, keeping the whole string as a fallback.
 const splitLocation = (location) => {
@@ -75,11 +115,19 @@ const splitLocation = (location) => {
 
   if (!parts.length) return { city: "", state: "", country: DEFAULT_COUNTRY };
 
-  let country = DEFAULT_COUNTRY;
+  let country = "";
   if (parts.length > 2) country = parts.pop();
 
-  const [city, state] = parts.length === 2 ? parts : [parts[0], parts[0]];
-  return { city, state: state || "", country };
+  const [city, rawState] = parts.length === 2 ? parts : [parts[0], parts[0]];
+  const state = stripZip(rawState || "");
+
+  if (!country) {
+    country = US_STATES.has(state.toLowerCase())
+      ? "United States"
+      : DEFAULT_COUNTRY;
+  }
+
+  return { city, state, country };
 };
 
 // Salary is stored as free text ("250,000 - 400,000 per month"), so the numeric
@@ -223,7 +271,7 @@ const buildJobElement = (job, { frontendUrl }) => {
     tag("salary_min", salary.min) +
     tag("salary_max", salary.max) +
     tag("salaryperiod", salary.text ? salary.period : "") +
-    tag("currency", salary.text ? DEFAULT_CURRENCY : "") +
+    tag("currency", salary.text ? currencyFor(salary.text, country) : "") +
     tag("expirationdate", isoDate(job.applicationDeadline)) +
     // Jooble names the expiry <expire>.
     tag("expire", isoDate(job.applicationDeadline)) +
@@ -318,7 +366,7 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
   if (salary.min) {
     jsonLd.baseSalary = {
       "@type": "MonetaryAmount",
-      currency: DEFAULT_CURRENCY,
+      currency: currencyFor(salary.text, country),
       value: {
         "@type": "QuantitativeValue",
         minValue: salary.min,
