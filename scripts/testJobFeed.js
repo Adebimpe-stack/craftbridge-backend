@@ -138,6 +138,23 @@ run("free-text location is split into city/state/country", () => {
   });
 });
 
+run("US jobs are not labelled as Nigerian", () => {
+  assert.deepStrictEqual(splitLocation("Johnson City, TN 37604"), {
+    city: "Johnson City",
+    state: "TN",
+    country: "United States",
+  });
+  assert.strictEqual(splitLocation("Ripon, Wisconsin").country, "United States");
+  assert.strictEqual(splitLocation("Ikeja, Lagos").country, "Nigeria");
+
+  const jsonLd = buildJobPostingJsonLd(
+    { ...jobs[0], location: "Ripon, Wisconsin", salary: "$25 - $30 per hour" },
+    { frontendUrl }
+  );
+  assert.strictEqual(jsonLd.jobLocation.address.addressCountry, "US");
+  assert.strictEqual(jsonLd.baseSalary.currency, "USD");
+});
+
 run("free-text salary is parsed into a range and period", () => {
   const salary = parseSalary("250,000 - 400,000 per month");
   assert.strictEqual(salary.min, 250000);
