@@ -158,7 +158,7 @@ router.get("/feeds/jobs-sitemap.xml", async (req, res) => {
       Job.find(feedQuery())
         .sort({ createdAt: -1 })
         .limit(FEED_LIMIT)
-        .select("_id updatedAt createdAt")
+        .select("_id slug updatedAt createdAt")
         .lean(),
       feedLastModified(),
     ]);

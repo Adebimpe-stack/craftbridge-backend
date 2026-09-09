@@ -12,6 +12,13 @@
 const { stripInvalidChars } = require("./xmlValidate");
 
 const DEFAULT_COUNTRY = "Nigeria";
+
+// Google for Jobs expects an ISO 3166-1 alpha-2 code, while the aggregator
+// feeds take the plain country name.
+const COUNTRY_CODES = { nigeria: "NG", ghana: "GH", kenya: "KE" };
+const countryCode = (country) =>
+  COUNTRY_CODES[String(country).trim().toLowerCase()] || country;
+
 const DEFAULT_CURRENCY = "NGN";
 
 // Aggregators expect plain text or HTML inside CDATA, never escaped markup, so
@@ -284,10 +291,10 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
         "@type": "PostalAddress",
         addressLocality: city,
         addressRegion: state,
-        addressCountry: country,
+        addressCountry: countryCode(country),
       },
     },
-    url: `${frontendUrl}/jobs/${job._id}`,
+    url: `${frontendUrl}/jobs/${job.slug || job._id}`,
   };
 
   if (job.applicationDeadline) {
@@ -304,7 +311,7 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
     jsonLd.jobLocationType = "TELECOMMUTE";
     jsonLd.applicantLocationRequirements = {
       "@type": "Country",
-      name: country,
+      name: countryCode(country),
     };
   }
 
@@ -335,7 +342,7 @@ const buildJobSitemapXml = (jobs, { frontendUrl }) => {
       const lastmod = isoDate(job.updatedAt || job.createdAt);
       return (
         "  <url>\n" +
-        `    <loc>${escapeXml(`${frontendUrl}/jobs/${job._id}`)}</loc>\n` +
+        `    <loc>${escapeXml(`${frontendUrl}/jobs/${job.slug || job._id}`)}</loc>\n` +
         (lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : "") +
         "    <changefreq>daily</changefreq>\n" +
         "  </url>\n"
