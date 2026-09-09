@@ -964,6 +964,81 @@ router.put(
 });
 
 // =======================
+// UPDATE PROFESSIONAL PROFILE PICTURE & PORTFOLIO (admin edit)
+// =======================
+router.put("/workers/:id/profile-uploads", auth, requireRole("admin"), upload.fields([
+  { name: "profilePicture", maxCount: 1 },
+  { name: "portfolioImages", maxCount: 10 },
+  { name: "portfolioVideos", maxCount: 5 },
+]), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Professional not found" });
+
+    if (user.role !== "jobseeker") {
+      return res.status(400).json({ message: "This endpoint is for professionals only" });
+    }
+
+    // Handle profile picture upload
+    if (req.files?.profilePicture?.[0]) {
+      user.profilePicture = req.files.profilePicture[0].location;
+    }
+
+    // Handle portfolio uploads
+    const newPortfolioImages =
+      (req.files?.portfolioImages || []).map((file) => ({
+        url: file.location,
+        caption: "",
+        type: "image",
+      }));
+
+    const newPortfolioVideos =
+      (req.files?.portfolioVideos || []).map((file) => ({
+        url: file.location,
+        caption: "",
+        type: "video",
+      }));
+
+    const updatedPortfolio = [
+      ...(user.portfolio || []),
+      ...newPortfolioImages,
+      ...newPortfolioVideos,
+    ];
+
+    user.portfolio = updatedPortfolio;
+
+    await user.save({ validateBeforeSave: false });
+
+    res.json({ message: "Profile uploads updated successfully", user });
+  } catch (err) {
+    console.error("workers/:id/profile-uploads error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// DELETE PROFESSIONAL PORTFOLIO ITEM (admin edit)
+// =======================
+router.delete("/workers/:id/portfolio/:itemId", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Professional not found" });
+
+    const updatedPortfolio = (user.portfolio || []).filter(
+      (item) => item._id?.toString() !== req.params.itemId
+    );
+
+    user.portfolio = updatedPortfolio;
+    await user.save({ validateBeforeSave: false });
+
+    res.json({ message: "Portfolio item removed", user });
+  } catch (err) {
+    console.error("workers/:id/portfolio/:itemId error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // UPDATE SERVICE BUSINESS IDENTITY & CONTACT (admin edit)
 // =======================
 router.put("/employers/:id/identity-contact", auth, requireRole("admin"), upload.single("profilePicture"), async (req, res) => {
