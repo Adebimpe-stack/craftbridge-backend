@@ -274,7 +274,8 @@ app.use("/api/dashboard", dashboardRoutes);
 
 app.use("/api/notifications", notificationRoutes);
 
-app.use("/robots.txt", robotsRoutes);
+// Mounted at the root because the router itself declares /robots.txt.
+app.use("/", robotsRoutes);
 
 app.use("/api/admin", adminRoutes);
 

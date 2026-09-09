@@ -17,6 +17,10 @@ const User =
 const { createNotification } = require("../services/notificationService");
 const { submitJobForIndexing } = require("../services/indexingService");
 const { generateSlug } = require("../utils/slugGenerator");
+const { buildJobPostingJsonLd } = require("../utils/jobFeed");
+
+const frontendUrl = () =>
+  (process.env.FRONTEND_URL || "https://craftbridgejobs.com").replace(/\/$/, "");
 
 const auth =
   require("../middleware/auth");
@@ -25,6 +29,22 @@ const upload = require("../middleware/upload");
 
 const { body, validationResult } = require("express-validator");
 
+// Job text is author-supplied, so it must be escaped before being interpolated
+// into HTML/XML; `</script` is also broken up so JSON-LD cannot close its tag.
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const jsonLdScript = (schema) =>
+  JSON.stringify(schema).replace(/</g, "\\u003c");
+
+const plainText = (value = "") =>
+  String(value).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
 // =========================
 // GET SEO-OPTIMIZED JOB PAGE HTML
 // GET /api/jobs/:id/seo-html
@@ -32,7 +52,9 @@ const { body, validationResult } = require("express-validator");
 // =========================
 router.get("/:id/seo-html", async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id)
+    const { id } = req.params;
+    const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { slug: id };
+    const job = await Job.findOne(query)
       .populate("companyId", "name logo verificationStatus isActive");
 
     if (!job || job.status !== "active" || job.isDeleted) {
@@ -43,118 +65,33 @@ router.get("/:id/seo-html", async (req, res) => {
       return res.status(404).send("Job not found");
     }
 
-    const employmentTypeMap = {
-      "Full-time": "FULL_TIME",
-      "Part-time": "PART_TIME",
-      "Contract": "CONTRACTOR",
-      "Temporary": "TEMPORARY",
-      "Internship": "INTERN",
-      "Volunteer": "VOLUNTEER",
-    };
-
-    const getJobLocationType = (workMode) => {
-      switch (workMode) {
-        case "Remote": return "TELECOMMUTE";
-        case "Hybrid": return "HYBRID";
-        default: return null;
-      }
-    };
-
-    const formatDate = (date) => {
-      if (!date) return null;
-      return new Date(date).toISOString().split('T')[0];
-    };
-
+    // Reuse the same JSON-LD the feed and job page emit, so the three can
+    // never describe the same job differently.
     const schema = {
-      "@context": "https://schema.org",
-      "@type": "JobPosting",
-      "title": job.title,
-      "description": job.description,
-      "datePosted": formatDate(job.createdAt),
-      "validThrough": job.applicationDeadline ? formatDate(job.applicationDeadline) : null,
-      "employmentType": employmentTypeMap[job.type] || "FULL_TIME",
-      "hiringOrganization": {
-        "@type": "Organization",
-        "name": job.companyName || "Confidential",
-      },
-      "jobLocation": {
-        "@type": "Place",
-        "address": {
-          "@type": "PostalAddress",
-          "addressLocality": job.location || "Nigeria",
-          "addressCountry": "NG"
-        }
-      },
-      "applicantLocationRequirements": {
-        "@type": "Country",
-        "name": "NG"
-      }
+      ...buildJobPostingJsonLd(job, { frontendUrl: frontendUrl() }),
+      directApply: true,
     };
-
-    const jobLocationType = getJobLocationType(job.workMode);
-    if (jobLocationType) {
-      schema.jobLocationType = jobLocationType;
-    }
-
-    if (job.salary) {
-      const salaryMatch = job.salary.match(/([₦$]?\s*[\d,]+)\s*[-–]\s*([₦$]?\s*[\d,]+)/);
-      if (salaryMatch) {
-        const minSalary = parseInt(salaryMatch[1].replace(/[₦$,]/g, '').replace(/,/g, ''));
-        const maxSalary = parseInt(salaryMatch[2].replace(/[₦$,]/g, '').replace(/,/g, ''));
-        if (!isNaN(minSalary) && !isNaN(maxSalary)) {
-          schema.baseSalary = {
-            "@type": "MonetaryAmount",
-            "currency": "NGN",
-            "value": {
-              "@type": "QuantitativeValue",
-              "minValue": minSalary,
-              "maxValue": maxSalary,
-              "unitText": "MONTH"
-            }
-          };
-        }
-      }
-    }
-
-    if (job.experienceLevel) {
-      const experienceMap = {
-        "Entry Level": "no_experience",
-        "Mid Level": "1-3_years",
-        "Senior Level": "3-5_years",
-        "Executive": "5-10_years",
-      };
-      schema.experienceRequirements = {
-        "@type": "OccupationalExperienceRequirements",
-        "monthsOfExperience": experienceMap[job.experienceLevel] || null
-      };
-    }
-
-    schema.directApply = true;
-    const baseUrl = process.env.FRONTEND_URL || "https://craftbridgejobs.com";
-    schema.url = `${baseUrl}/jobs/${job.slug || job._id}`;
-
-    Object.keys(schema).forEach(key => {
-      if (schema[key] === null) delete schema[key];
-    });
 
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${job.title} | ${job.companyName || "CraftBridge"}</title>
-  <meta name="description" content="${job.description?.substring(0, 160)}" />
-  <link rel="canonical" href="${schema.url}" />
+  <meta name="robots" content="index, follow" />
+  <title>${escapeHtml(job.title)} | ${escapeHtml(job.companyName || "CraftBridge")}</title>
+  <meta name="description" content="${escapeHtml(plainText(job.description).slice(0, 160))}" />
+  <link rel="canonical" href="${escapeHtml(schema.url)}" />
   <script type="application/ld+json">
-    ${JSON.stringify(schema)}
+    ${jsonLdScript(schema)}
   </script>
 </head>
 <body>
-  <h1>${job.title}</h1>
-  <p>Company: ${job.companyName || "Confidential"}</p>
-  <p>Location: ${job.location}</p>
-  <p>Type: ${job.type}</p>
-  <p><a href="${schema.url}">View full job details on CraftBridge</a></p>
+  <h1>${escapeHtml(job.title)}</h1>
+  <p>Company: ${escapeHtml(job.companyName || "Confidential")}</p>
+  <p>Location: ${escapeHtml(job.location || "")}</p>
+  <p>Type: ${escapeHtml(job.type || "")}</p>
+  <div>${escapeHtml(plainText(job.description))}</div>
+  <p><a href="${escapeHtml(schema.url)}">View full job details on CraftBridge</a></p>
 </body>
 </html>`;
 
@@ -179,25 +116,36 @@ router.get("/sitemap.xml", async (req, res) => {
       .select("slug updatedAt")
       .sort({ updatedAt: -1 });
 
-    const baseUrl = process.env.FRONTEND_URL || "https://craftbridgejobs.com";
-    
+    const baseUrl = frontendUrl();
+    const apiUrl = (
+      process.env.API_URL || "https://api.craftbridgejobs.com"
+    ).replace(/\/$/, "");
+
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 `;
 
     jobs.forEach(job => {
-      if (job.companyId?.isActive !== false && job.slug) {
-        const jobUrl = `${baseUrl}/jobs/${job.slug}`;
-        const lastMod = job.updatedAt ? job.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      if (job.companyId?.isActive === false) return;
 
+      const lastMod = (job.updatedAt || new Date()).toISOString().split('T')[0];
+
+      // The crawlable page and its server-rendered twin are both listed so
+      // Google can reach the JobPosting markup without executing JavaScript.
+      const urls = [
+        { loc: `${baseUrl}/jobs/${job.slug || job._id}`, priority: "0.8" },
+        { loc: `${apiUrl}/api/jobs/${job._id}/seo-html`, priority: "0.6" },
+      ];
+
+      urls.forEach(({ loc, priority }) => {
         xml += `  <url>
-    <loc>${jobUrl}</loc>
+    <loc>${escapeHtml(loc)}</loc>
     <lastmod>${lastMod}</lastmod>
     <changefreq>daily</changefreq>
-    <priority>0.8</priority>
+    <priority>${priority}</priority>
   </url>
 `;
-      }
+      });
     });
 
     xml += `</urlset>`;
