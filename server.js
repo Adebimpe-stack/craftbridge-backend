@@ -59,6 +59,9 @@ const candidateRoutes =
 const professionalsRoutes =
   require("./routes/professionals");
 
+const shortlistRequestRoutes =
+  require("./routes/shortlistRequests");
+
 const employerRoutes =
   require("./routes/employer");
 
@@ -280,6 +283,8 @@ app.use("/", robotsRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use("/api/reports", reportRoutes);
+
+app.use("/api/shortlist-requests", shortlistRequestRoutes);
 
 // Aggregator-facing feed, mounted at the root so the submitted URL stays
 // /feeds/jobs.xml, and under /api for consistency with the rest of the API.
