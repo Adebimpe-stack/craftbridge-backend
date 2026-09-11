@@ -64,6 +64,13 @@ const jobSchema = new mongoose.Schema(
       type: String,
     },
 
+    // Left unset on jobs posted before the selector existed; consumers fall
+    // back to reading the symbol out of `salary`.
+    salaryCurrency: {
+      type: String,
+      enum: ["NGN", "USD", "GBP", "EUR", "CAD", "AUD"],
+    },
+
     type: {
       type: String,
     },

@@ -29,6 +29,14 @@ const upload = require("../middleware/upload");
 
 const { body, validationResult } = require("express-validator");
 
+// The field is an enum, so anything unrecognised (including the empty string a
+// blank select posts) has to become undefined rather than fail validation.
+const SALARY_CURRENCIES = ["NGN", "USD", "GBP", "EUR", "CAD", "AUD"];
+const normalizeCurrency = (value) => {
+  const code = String(value || "").trim().toUpperCase();
+  return SALARY_CURRENCIES.includes(code) ? code : undefined;
+};
+
 // Job text is author-supplied, so it must be escaped before being interpolated
 // into HTML/XML; `</script` is also broken up so JSON-LD cannot close its tag.
 const escapeHtml = (value = "") =>
@@ -306,6 +314,9 @@ const newJob =
     salary:
       req.body.salary,
 
+    salaryCurrency:
+      normalizeCurrency(req.body.salaryCurrency),
+
     type:
       req.body.type,
 
@@ -521,6 +532,7 @@ router.put(
         description,
         location,
         salary,
+        salaryCurrency,
         type,
         category,
         field,
@@ -536,6 +548,9 @@ router.put(
       if (description !== undefined) job.description = description;
       if (location !== undefined) job.location = location;
       if (salary !== undefined) job.salary = salary;
+      if (salaryCurrency !== undefined) {
+        job.salaryCurrency = normalizeCurrency(salaryCurrency);
+      }
       if (type !== undefined) job.type = type;
       if (category !== undefined) job.category = category;
       if (field !== undefined) job.field = field;
