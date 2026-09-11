@@ -27,11 +27,16 @@ const countryCode = (country) =>
 
 const DEFAULT_CURRENCY = "NGN";
 
-// Salary is free text, so the currency is taken from its symbol/code and only
-// falls back to the country's when neither is present.
-const currencyFor = (salaryText, country) => {
+// The employer's explicit choice wins. Jobs posted before the currency
+// selector existed have none, so their symbol/code is read out of the salary
+// text and the country is the last resort.
+const currencyFor = (job, salaryText, country) => {
+  if (job && job.salaryCurrency) return String(job.salaryCurrency).toUpperCase();
+
   const text = String(salaryText || "");
   if (/₦|\bNGN\b/i.test(text)) return "NGN";
+  if (/C\$|\bCAD\b/i.test(text)) return "CAD";
+  if (/A\$|\bAUD\b/i.test(text)) return "AUD";
   if (/\$|\bUSD\b/i.test(text)) return "USD";
   if (/£|\bGBP\b/i.test(text)) return "GBP";
   if (/€|\bEUR\b/i.test(text)) return "EUR";
@@ -271,7 +276,7 @@ const buildJobElement = (job, { frontendUrl }) => {
     tag("salary_min", salary.min) +
     tag("salary_max", salary.max) +
     tag("salaryperiod", salary.text ? salary.period : "") +
-    tag("currency", salary.text ? currencyFor(salary.text, country) : "") +
+    tag("currency", salary.text ? currencyFor(job, salary.text, country) : "") +
     tag("expirationdate", isoDate(job.applicationDeadline)) +
     // Jooble names the expiry <expire>.
     tag("expire", isoDate(job.applicationDeadline)) +
@@ -366,7 +371,7 @@ const buildJobPostingJsonLd = (job, { frontendUrl }) => {
   if (salary.min) {
     jsonLd.baseSalary = {
       "@type": "MonetaryAmount",
-      currency: currencyFor(salary.text, country),
+      currency: currencyFor(job, salary.text, country),
       value: {
         "@type": "QuantitativeValue",
         minValue: salary.min,

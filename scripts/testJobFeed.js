@@ -155,6 +155,27 @@ run("US jobs are not labelled as Nigerian", () => {
   assert.strictEqual(jsonLd.baseSalary.currency, "USD");
 });
 
+run("the employer's selected currency wins over inference", () => {
+  const jsonLd = buildJobPostingJsonLd(
+    {
+      ...jobs[0],
+      location: "Ikeja, Lagos",
+      salary: "30,000 - 50,000 per month",
+      salaryCurrency: "USD",
+    },
+    { frontendUrl }
+  );
+  assert.strictEqual(jsonLd.baseSalary.currency, "USD");
+  assert.strictEqual(jsonLd.baseSalary.value.minValue, 30000);
+
+  // Jobs predating the selector keep reading the symbol out of the text.
+  const legacy = buildJobPostingJsonLd(
+    { ...jobs[0], location: "Ikeja, Lagos", salary: "₦30,000 - ₦50,000" },
+    { frontendUrl }
+  );
+  assert.strictEqual(legacy.baseSalary.currency, "NGN");
+});
+
 run("free-text salary is parsed into a range and period", () => {
   const salary = parseSalary("250,000 - 400,000 per month");
   assert.strictEqual(salary.min, 250000);
