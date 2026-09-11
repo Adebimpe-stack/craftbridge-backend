@@ -5,6 +5,7 @@ const User = require("../models/User");
 const ServiceRequest = require("../models/ServiceRequest");
 const {
   buildPublicDirectoryRankingPipeline,
+  buildPublicDirectoryEligibilityMatch,
 } = require("../utils/professionalRanking");
 const {
   recordProfileView,
@@ -135,6 +136,93 @@ router.get("/", async (req, res) => {
     res.json({ professionals });
   } catch (err) {
     console.error("PROFESSIONALS LIST ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// GET FEATURED PROFESSIONALS
+// GET /api/professionals/featured?limit=5
+// A hard-capped showroom for the homepage: verified professionals with work
+// samples only, so the public never learns how large the network actually is.
+// Declared before /:id so "featured" is not read as an id.
+// =========================
+router.get("/featured", async (req, res) => {
+  try {
+    const requested = Number(req.query.limit);
+    const limit = Math.min(
+      Math.max(Number.isFinite(requested) ? requested : 5, 1),
+      5
+    );
+
+    const baseMatch = () => ({
+      $or: [
+        { role: "jobseeker" },
+        {
+          role: { $in: ["user", "customer"] },
+          primaryTrade: { $exists: true, $nin: ["", null] },
+        },
+      ],
+      accountStatus: { $nin: ["suspended", "deactivated"] },
+      $and: [
+        {
+          $or: [
+            { workerVerificationStatus: "verified" },
+            { isVerified: true },
+          ],
+        },
+        // A showroom is only worth showing with complete profiles in it.
+        buildPublicDirectoryEligibilityMatch(),
+      ],
+    });
+
+    const projection = {
+      $project: {
+        _id: 1,
+        name: 1,
+        profilePicture: 1,
+        profileImage: 1,
+        primaryTrade: 1,
+        location: 1,
+        city: 1,
+        state: 1,
+        country: 1,
+        workerVerificationStatus: 1,
+        isVerified: 1,
+        experienceYears: 1,
+        skills: 1,
+        portfolio: 1,
+      },
+    };
+
+    const topRanked = async (matchStage, count, excludeIds = []) => {
+      if (count <= 0) return [];
+      if (excludeIds.length) matchStage._id = { $nin: excludeIds };
+
+      const pipeline = buildPublicDirectoryRankingPipeline(matchStage);
+      pipeline.push({ $limit: count }, projection);
+      return User.aggregate(pipeline);
+    };
+
+    const withPortfolio = baseMatch();
+    withPortfolio.$and.push({ portfolio: { $exists: true, $not: { $size: 0 } } });
+
+    // Work samples first, but a young network shouldn't leave the showroom
+    // empty, so the remaining slots fall back to top-ranked verified profiles.
+    const professionals = await topRanked(withPortfolio, limit);
+    if (professionals.length < limit) {
+      professionals.push(
+        ...(await topRanked(
+          baseMatch(),
+          limit - professionals.length,
+          professionals.map((p) => p._id)
+        ))
+      );
+    }
+
+    res.json({ professionals });
+  } catch (err) {
+    console.error("FEATURED PROFESSIONALS ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
