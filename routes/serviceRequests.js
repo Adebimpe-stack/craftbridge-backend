@@ -6,6 +6,7 @@ const ServiceRequest = require("../models/ServiceRequest");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const sendEmail = require("../utils/sendEmail");
+const sendSms = require("../utils/sendSms");
 const { createNotification } = require("../services/notificationService");
 
 const requireClientAccount = (req, res, next) => {
@@ -84,10 +85,11 @@ router.post("/", auth, requireClientAccount, subscription, async (req, res) => {
     let recipientId = null;
     let recipientName = "";
     let recipientEmail = "";
+    let recipientPhone = "";
     let businessRecipient = null;
 
     if (professionalId) {
-      const professional = await User.findById(professionalId).select("name email role workerVerificationStatus accountStatus");
+      const professional = await User.findById(professionalId).select("name email phone role workerVerificationStatus accountStatus");
       if (!professional) {
         return res.status(404).json({ message: "Professional not found." });
       }
@@ -104,10 +106,11 @@ router.post("/", auth, requireClientAccount, subscription, async (req, res) => {
       recipientId = professionalId;
       recipientName = professional.name;
       recipientEmail = professional.email;
+      recipientPhone = professional.phone || "";
     } else if (businessId) {
       const business = await Company.findById(businessId)
-        .select("name companyEmail owner verificationStatus isActive")
-        .populate("owner", "name email");
+        .select("name companyEmail phone owner verificationStatus isActive")
+        .populate("owner", "name email phone");
 
       if (!business || business.isActive === false) {
         return res.status(404).json({ message: "Service business not found." });
@@ -122,6 +125,7 @@ router.post("/", auth, requireClientAccount, subscription, async (req, res) => {
       recipientId = businessId;
       recipientName = business.name;
       recipientEmail = business.companyEmail || business.owner?.email || "";
+      recipientPhone = business.phone || business.owner?.phone || "";
     }
 
     // =========================
@@ -212,6 +216,13 @@ router.post("/", auth, requireClientAccount, subscription, async (req, res) => {
       }).catch(() => {});
     }
 
+    if (recipientPhone) {
+      sendSms({
+        to: recipientPhone,
+        message: "You have a new project request on CraftBridge! Log in to view details and respond.",
+      }).catch((err) => console.error("SERVICE REQUEST SMS ERROR:", err));
+    }
+
     res.status(201).json({ message: "Service request submitted successfully.", serviceRequest });
   } catch (err) {
     console.error("SERVICE REQUEST CREATE ERROR:", err);
@@ -296,7 +307,7 @@ router.put("/:id/status", auth, async (req, res) => {
     }
 
     const request = await ServiceRequest.findById(req.params.id)
-      .populate("client", "name email companyId")
+      .populate("client", "name email phone companyId")
       .populate("professional", "name primaryTrade")
       .populate("business", "name owner teamMembers")
       .populate("business.owner", "name email");
@@ -421,6 +432,13 @@ router.put("/:id/status", auth, async (req, res) => {
           </div>
         `,
       }).catch(() => {});
+    }
+
+    if (request.client.phone) {
+      sendSms({
+        to: request.client.phone,
+        message: `Your CraftBridge request for ${request.serviceType} was ${status} by ${recipientName}. Log in to view details.`,
+      }).catch((err) => console.error("SERVICE REQUEST STATUS SMS ERROR:", err));
     }
 
     res.json({ message: `Request ${status} successfully.`, request });
