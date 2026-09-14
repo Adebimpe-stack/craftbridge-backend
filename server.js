@@ -15,6 +15,9 @@ const rateLimit =
 const mongoose =
   require("mongoose");
 
+const errorHandler =
+  require("./middleware/errorHandler");
+
 const app =
   express();
 
@@ -305,6 +308,12 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", db: dbReady ? "connected" : "disconnected" });
 });
+
+// ==============================
+// ERROR HANDLER
+// ==============================
+
+app.use(errorHandler);
 
 // ==============================
 // START SERVER

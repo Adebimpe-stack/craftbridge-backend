@@ -10,10 +10,33 @@ const allowedMimeTypes = [
   "image/png",
   "image/jpeg",
   "image/jpg",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
   "video/mp4",
   "video/webm",
   "video/quicktime",
   "video/x-msvideo",
+];
+
+const allowedExtensions = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".heic",
+  ".heif",
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".avi",
 ];
 
 const requiredConfig = [
@@ -27,11 +50,29 @@ const missingConfig = () =>
   requiredConfig.filter((key) => !process.env[key]);
 
 const fileFilter = (req, file, cb) => {
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  const mimetype = String(file.mimetype || "").toLowerCase();
+  const extension = path.extname(file.originalname || "").toLowerCase();
+
+  // Browsers and phones often send a generic or missing mimetype (notably for
+  // HEIC photos), so fall back to the extension before rejecting the file.
+  const genericMimetype =
+    !mimetype ||
+    mimetype === "application/octet-stream" ||
+    mimetype === "binary/octet-stream";
+
+  if (
+    allowedMimeTypes.includes(mimetype) ||
+    (genericMimetype && allowedExtensions.includes(extension))
+  ) {
     return cb(null, true);
   }
 
-  cb(new Error("Invalid file type"), false);
+  const error = new Error(
+    `"${file.originalname}" is not a supported file type. Upload a JPG, PNG, WEBP, HEIC or GIF image, a PDF/Word document, or an MP4/WEBM/MOV video.`
+  );
+  error.code = "INVALID_FILE_TYPE";
+  error.status = 400;
+  cb(error, false);
 };
 
 const buildUpload = () => {
@@ -116,6 +157,9 @@ const requireUpload = () => {
 };
 
 module.exports = {
+  allowedMimeTypes,
+  allowedExtensions,
+  fileFilter,
   single: (...args) => requireUpload().single(...args),
   array: (...args) => requireUpload().array(...args),
   fields: (...args) => requireUpload().fields(...args),
