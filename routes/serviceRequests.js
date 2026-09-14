@@ -190,21 +190,22 @@ router.post("/", auth, requireClientAccount, subscription, async (req, res) => {
 
     if (recipientEmail) {
       const isBusiness = recipientType === "business";
+      const requestsPath = isBusiness ? "/business/service-requests" : "/service-requests";
       sendEmail({
         to: recipientEmail,
-        subject: "New Service Request on CraftBridge",
+        subject: "You have a new project request on CraftBridge",
         html: `
           <div style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
             <div style="max-width:520px;margin:auto;background:white;border-radius:12px;padding:32px;">
-              <h2 style="color:#166534;margin-bottom:8px;">New Service Request</h2>
-              <p style="color:#475569;">Hi ${recipientName}, you have received a new service request.</p>
+              <h2 style="color:#166534;margin-bottom:8px;">New Project Request</h2>
+              <p style="color:#475569;">Hi ${recipientName}, you have a new project request on CraftBridge! Log in to view details and respond.</p>
               <table style="width:100%;border-collapse:collapse;margin:20px 0;">
                 <tr><td style="padding:8px 0;color:#64748b;font-weight:600;">Service:</td><td style="padding:8px 0;color:#0f172a;">${serviceType}</td></tr>
                 <tr><td style="padding:8px 0;color:#64748b;font-weight:600;">Description:</td><td style="padding:8px 0;color:#0f172a;">${description}</td></tr>
                 ${location ? `<tr><td style="padding:8px 0;color:#64748b;font-weight:600;">Location:</td><td style="padding:8px 0;color:#0f172a;">${location}</td></tr>` : ""}
                 ${budget ? `<tr><td style="padding:8px 0;color:#64748b;font-weight:600;">Budget:</td><td style="padding:8px 0;color:#0f172a;">${budget}</td></tr>` : ""}
               </table>
-              <a href="${process.env.CLIENT_URL}/service-requests" style="display:inline-block;background:#166534;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Request</a>
+              <a href="${process.env.CLIENT_URL}${requestsPath}" style="display:inline-block;background:#166534;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Request</a>
             </div>
           </div>
         `,
@@ -365,7 +366,7 @@ router.put("/:id/status", auth, async (req, res) => {
       });
 
       const profileUrl = request.professional
-        ? `${process.env.CLIENT_URL}/professional/${request.professional._id}`
+        ? `${process.env.CLIENT_URL}/professionals/${request.professional._id}`
         : `${process.env.CLIENT_URL}/companies/${request.business._id}`;
 
       sendEmail({
