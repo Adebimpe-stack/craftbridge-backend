@@ -50,6 +50,14 @@ const jobSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Authoritative country for the job. Jobs posted before the selector
+    // existed have none, so consumers fall back to inferring it from
+    // `location`.
+    country: {
+      type: String,
+      trim: true,
+    },
+
     workMode: {
       type: String,
       enum: [

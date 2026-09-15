@@ -10,20 +10,14 @@
 // =========================
 
 const { stripInvalidChars } = require("./xmlValidate");
+const { countryCodeFor } = require("./countries");
 
 const DEFAULT_COUNTRY = "Nigeria";
 
 // Google for Jobs expects an ISO 3166-1 alpha-2 code, while the aggregator
 // feeds take the plain country name.
-const COUNTRY_CODES = {
-  nigeria: "NG",
-  ghana: "GH",
-  kenya: "KE",
-  "united states": "US",
-  usa: "US",
-};
 const countryCode = (country) =>
-  COUNTRY_CODES[String(country).trim().toLowerCase()] || country;
+  countryCodeFor(country) || String(country).trim();
 
 const DEFAULT_CURRENCY = "NGN";
 
@@ -135,6 +129,11 @@ const splitLocation = (location) => {
   return { city, state, country };
 };
 
+// The employer's explicit choice wins; jobs posted before the country
+// selector existed fall back to the country inferred from the location text.
+const jobCountry = (job) =>
+  String(job.country || "").trim() || splitLocation(job.location).country;
+
 // Salary is stored as free text ("250,000 - 400,000 per month"), so the numeric
 // range is recovered for the aggregators that want structured pay.
 const parseSalary = (salary) => {
@@ -220,7 +219,8 @@ const buildDescription = (job) => {
 
 const buildJobElement = (job, { frontendUrl }) => {
   const company = job.companyId || job.company || {};
-  const { city, state, country } = splitLocation(job.location);
+  const { city, state } = splitLocation(job.location);
+  const country = jobCountry(job);
   const salary = parseSalary(job.salary);
   const url = `${frontendUrl}/jobs/${job._id}`;
 
@@ -317,7 +317,8 @@ const buildJobFeedXml = (
 // =========================
 const buildJobPostingJsonLd = (job, { frontendUrl }) => {
   const company = job.companyId || job.company || {};
-  const { city, state, country } = splitLocation(job.location);
+  const { city, state } = splitLocation(job.location);
+  const country = jobCountry(job);
   const salary = parseSalary(job.salary);
 
   const jsonLd = {
@@ -416,6 +417,7 @@ module.exports = {
   buildJobSitemapXml,
   buildJobPostingJsonLd,
   splitLocation,
+  jobCountry,
   parseSalary,
   employmentType,
   feedDate,
