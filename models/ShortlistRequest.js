@@ -11,6 +11,19 @@ const shortlistRequestSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Broad capability sector the visitor picked on the catalog page.
+    sector: {
+      type: String,
+      trim: true,
+    },
+
+    // "professional" when they asked for a technician, "business" for a company.
+    recipientType: {
+      type: String,
+      enum: ["professional", "business"],
+      default: "professional",
+    },
+
     location: {
       type: String,
       trim: true,

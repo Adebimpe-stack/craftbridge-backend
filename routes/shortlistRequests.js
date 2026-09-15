@@ -47,8 +47,18 @@ const optionalViewer = async (req) => {
 // =========================
 router.post("/", requestLimiter, async (req, res) => {
   try {
-    const { role: neededRole, location, hires, details, contactName, company, email, phone } =
-      req.body;
+    const {
+      role: neededRole,
+      sector,
+      recipientType,
+      location,
+      hires,
+      details,
+      contactName,
+      company,
+      email,
+      phone,
+    } = req.body;
 
     if (!String(neededRole || "").trim()) {
       return res.status(400).json({ message: "Tell us which role you need filled" });
@@ -64,6 +74,8 @@ router.post("/", requestLimiter, async (req, res) => {
 
     const request = await ShortlistRequest.create({
       role: neededRole,
+      sector,
+      recipientType: recipientType === "business" ? "business" : "professional",
       location,
       hires,
       details,
@@ -83,6 +95,8 @@ router.post("/", requestLimiter, async (req, res) => {
         html: `
           <h2>New shortlist request</h2>
           <p><strong>Role:</strong> ${escapeHtml(neededRole)}</p>
+          <p><strong>Sector:</strong> ${escapeHtml(sector) || "—"}</p>
+          <p><strong>Looking for:</strong> ${recipientType === "business" ? "Service business" : "Technician / professional"}</p>
           <p><strong>Location:</strong> ${escapeHtml(location) || "—"}</p>
           <p><strong>Hires needed:</strong> ${escapeHtml(hires) || "—"}</p>
           <p><strong>Contact:</strong> ${escapeHtml(contactName)} (${escapeHtml(email)})</p>
@@ -95,7 +109,7 @@ router.post("/", requestLimiter, async (req, res) => {
 
     res.status(201).json({
       message:
-        "Thank you. We will query our verified network and send your shortlist within 48 hours.",
+        "Thank you. Our team will review your requirements and come back to you with matched, vetted providers.",
       requestId: request._id,
     });
   } catch (err) {

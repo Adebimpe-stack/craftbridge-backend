@@ -17,7 +17,8 @@ const User =
 const { createNotification } = require("../services/notificationService");
 const { submitJobForIndexing } = require("../services/indexingService");
 const { generateSlug } = require("../utils/slugGenerator");
-const { buildJobPostingJsonLd } = require("../utils/jobFeed");
+const { buildJobPostingJsonLd, jobCountry } = require("../utils/jobFeed");
+const { normalizeCountry } = require("../utils/countries");
 
 const frontendUrl = () =>
   (process.env.FRONTEND_URL || "https://craftbridgejobs.com").replace(/\/$/, "");
@@ -97,6 +98,7 @@ router.get("/:id/seo-html", async (req, res) => {
   <h1>${escapeHtml(job.title)}</h1>
   <p>Company: ${escapeHtml(job.companyName || "Confidential")}</p>
   <p>Location: ${escapeHtml(job.location || "")}</p>
+  <p>Country: ${escapeHtml(jobCountry(job))}</p>
   <p>Type: ${escapeHtml(job.type || "")}</p>
   <div>${escapeHtml(plainText(job.description))}</div>
   <p><a href="${escapeHtml(schema.url)}">View full job details on CraftBridge</a></p>
@@ -177,6 +179,7 @@ router.post(
     body("title", "Job title is required").not().isEmpty(),
     body("category", "Category is required").not().isEmpty(),
     body("location", "Location is required").not().isEmpty(),
+    body("country", "Country is required").not().isEmpty(),
     body("type", "Job type is required").not().isEmpty(),
     body("workMode", "Work mode is required").not().isEmpty(),
     body("experienceLevel", "Experience level is required").not().isEmpty(),
@@ -195,6 +198,13 @@ router.post(
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
+      }
+
+      const country = normalizeCountry(req.body.country);
+      if (!country) {
+        return res.status(400).json({
+          message: "Select a valid country for this job.",
+        });
       }
 
       if (!user) {
@@ -307,6 +317,8 @@ const newJob =
 
     location:
       req.body.location,
+
+    country,
 
     workMode:
       req.body.workMode,
@@ -433,6 +445,44 @@ router.get(
 );
 
 // =========================
+// GET GLOBAL OPPORTUNITIES (jobs located outside Nigeria)
+// =========================
+
+router.get("/global", async (req, res) => {
+  try {
+    const jobs = await Job.find({
+      status: "active",
+      isDeleted: false,
+    })
+      .populate("companyId", "name verificationStatus isActive")
+      .sort({ createdAt: -1 });
+
+    const globalJobs = jobs
+      .filter((job) => job.companyId?.isActive !== false)
+      .map((job) => ({ job, country: jobCountry(job) }))
+      .filter(({ country }) => country.trim().toLowerCase() !== "nigeria")
+      .map(({ job, country }) => {
+        const company = job.companyId;
+        const isCraftBridgeRecruitment =
+          company?.name === "CraftBridge Recruitment";
+        return {
+          ...job.toObject(),
+          country,
+          companyName: isCraftBridgeRecruitment
+            ? "Recruiting through CraftBridge"
+            : company?.name || "Confidential",
+          companyVerified: company?.verificationStatus === "verified",
+        };
+      });
+
+    res.json(globalJobs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
 // GET SINGLE JOB (by ID or slug)
 // =========================
 
@@ -531,6 +581,7 @@ router.put(
         title,
         description,
         location,
+        country,
         salary,
         salaryCurrency,
         type,
@@ -547,6 +598,15 @@ router.put(
       if (title !== undefined) job.title = title;
       if (description !== undefined) job.description = description;
       if (location !== undefined) job.location = location;
+      if (country !== undefined) {
+        const normalizedCountry = normalizeCountry(country);
+        if (!normalizedCountry) {
+          return res.status(400).json({
+            message: "Select a valid country for this job.",
+          });
+        }
+        job.country = normalizedCountry;
+      }
       if (salary !== undefined) job.salary = salary;
       if (salaryCurrency !== undefined) {
         job.salaryCurrency = normalizeCurrency(salaryCurrency);

@@ -14,6 +14,7 @@ const {
   buildJobSitemapXml,
   buildJobPostingJsonLd,
   splitLocation,
+  jobCountry,
   parseSalary,
   employmentType,
 } = require("../utils/jobFeed");
@@ -153,6 +154,22 @@ run("US jobs are not labelled as Nigerian", () => {
   );
   assert.strictEqual(jsonLd.jobLocation.address.addressCountry, "US");
   assert.strictEqual(jsonLd.baseSalary.currency, "USD");
+});
+
+run("the employer's selected country wins over the location text", () => {
+  // The employer picks the country on the Post Job form; only jobs saved
+  // before the selector existed fall back to parsing the location.
+  assert.strictEqual(
+    jobCountry({ location: "Dubai", country: "United Arab Emirates" }),
+    "United Arab Emirates"
+  );
+  assert.strictEqual(jobCountry({ location: "Ikeja, Lagos" }), "Nigeria");
+
+  const jsonLd = buildJobPostingJsonLd(
+    { ...jobs[0], location: "Dubai", country: "United Arab Emirates" },
+    { frontendUrl }
+  );
+  assert.strictEqual(jsonLd.jobLocation.address.addressCountry, "AE");
 });
 
 run("the employer's selected currency wins over inference", () => {
