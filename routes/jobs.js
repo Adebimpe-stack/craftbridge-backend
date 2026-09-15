@@ -17,7 +17,7 @@ const User =
 const { createNotification } = require("../services/notificationService");
 const { submitJobForIndexing } = require("../services/indexingService");
 const { generateSlug } = require("../utils/slugGenerator");
-const { buildJobPostingJsonLd } = require("../utils/jobFeed");
+const { buildJobPostingJsonLd, splitLocation } = require("../utils/jobFeed");
 
 const frontendUrl = () =>
   (process.env.FRONTEND_URL || "https://craftbridgejobs.com").replace(/\/$/, "");
@@ -431,6 +431,44 @@ router.get(
 
   }
 );
+
+// =========================
+// GET GLOBAL OPPORTUNITIES (jobs located outside Nigeria)
+// =========================
+
+router.get("/global", async (req, res) => {
+  try {
+    const jobs = await Job.find({
+      status: "active",
+      isDeleted: false,
+    })
+      .populate("companyId", "name verificationStatus isActive")
+      .sort({ createdAt: -1 });
+
+    const globalJobs = jobs
+      .filter((job) => job.companyId?.isActive !== false)
+      .map((job) => ({ job, country: splitLocation(job.location).country }))
+      .filter(({ country }) => country.trim().toLowerCase() !== "nigeria")
+      .map(({ job, country }) => {
+        const company = job.companyId;
+        const isCraftBridgeRecruitment =
+          company?.name === "CraftBridge Recruitment";
+        return {
+          ...job.toObject(),
+          country,
+          companyName: isCraftBridgeRecruitment
+            ? "Recruiting through CraftBridge"
+            : company?.name || "Confidential",
+          companyVerified: company?.verificationStatus === "verified",
+        };
+      });
+
+    res.json(globalJobs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // =========================
 // GET SINGLE JOB (by ID or slug)
