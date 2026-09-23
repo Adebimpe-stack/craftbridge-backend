@@ -22,6 +22,9 @@ const protect =
 const upload =
   require("../middleware/upload");
 
+const { whatsappLink } =
+  require("../utils/localSeo");
+
 // ==============================
 // GET COMPANY PROFILE
 // ==============================
@@ -945,9 +948,23 @@ router.get(
         )
         .sort({
           createdAt: -1,
-        });
+        })
+        .lean();
 
-      res.json(talent);
+      // Verified professionals carry a WhatsApp deep link; the number itself
+      // never leaves the server.
+      const directory = talent.map(
+        ({ phone, socialLinks, ...rest }) => ({
+          ...rest,
+          whatsappUrl: whatsappLink(
+            socialLinks?.whatsapp ||
+              phone ||
+              socialLinks?.phone
+          ),
+        })
+      );
+
+      res.json(directory);
 
     } catch (error) {
       console.error(error);
