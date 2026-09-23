@@ -50,9 +50,13 @@ const shortlistRequestSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // The catalog form collects an email; the localized landing pages collect a
+    // phone number instead, so one of the two is required rather than both.
     email: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.phone;
+      },
       trim: true,
       lowercase: true,
     },
@@ -60,6 +64,14 @@ const shortlistRequestSchema = new mongoose.Schema(
     phone: {
       type: String,
       trim: true,
+    },
+
+    // Which surface produced the lead: the sector catalog or a
+    // [trade]/[location] landing page.
+    source: {
+      type: String,
+      enum: ["catalog", "local_page"],
+      default: "catalog",
     },
 
     status: {
