@@ -58,6 +58,7 @@ router.post("/", requestLimiter, async (req, res) => {
       company,
       email,
       phone,
+      source,
     } = req.body;
 
     if (!String(neededRole || "").trim()) {
@@ -66,8 +67,15 @@ router.post("/", requestLimiter, async (req, res) => {
     if (!String(contactName || "").trim()) {
       return res.status(400).json({ message: "Your name is required" });
     }
-    if (!/^\S+@\S+\.\S+$/.test(String(email || "").trim())) {
-      return res.status(400).json({ message: "A valid email address is required" });
+
+    // The localized landing pages ask for a phone number instead of an email,
+    // so either channel is enough to reach the client back.
+    const hasEmail = /^\S+@\S+\.\S+$/.test(String(email || "").trim());
+    const hasPhone = String(phone || "").replace(/\D/g, "").length >= 8;
+    if (!hasEmail && !hasPhone) {
+      return res.status(400).json({
+        message: "A valid email address or phone number is required",
+      });
     }
 
     const viewer = await optionalViewer(req);
@@ -81,8 +89,9 @@ router.post("/", requestLimiter, async (req, res) => {
       details,
       contactName,
       company,
-      email,
+      email: hasEmail ? email : undefined,
       phone,
+      source: source === "local_page" ? "local_page" : "catalog",
       requestedBy: viewer?._id,
     });
 
@@ -91,7 +100,9 @@ router.post("/", requestLimiter, async (req, res) => {
       // Never let a mail failure lose the request that is already stored.
       sendEmail({
         to: notifyTo,
-        subject: `Shortlist request: ${String(neededRole).slice(0, 80)}`,
+        subject: `${
+          source === "local_page" ? "Local lead" : "Shortlist request"
+        }: ${String(neededRole).slice(0, 80)}`,
         html: `
           <h2>New shortlist request</h2>
           <p><strong>Role:</strong> ${escapeHtml(neededRole)}</p>
@@ -99,7 +110,7 @@ router.post("/", requestLimiter, async (req, res) => {
           <p><strong>Looking for:</strong> ${recipientType === "business" ? "Service business" : "Technician / professional"}</p>
           <p><strong>Location:</strong> ${escapeHtml(location) || "—"}</p>
           <p><strong>Hires needed:</strong> ${escapeHtml(hires) || "—"}</p>
-          <p><strong>Contact:</strong> ${escapeHtml(contactName)} (${escapeHtml(email)})</p>
+          <p><strong>Contact:</strong> ${escapeHtml(contactName)} (${escapeHtml(email) || "no email"})</p>
           <p><strong>Company:</strong> ${escapeHtml(company) || "—"}</p>
           <p><strong>Phone:</strong> ${escapeHtml(phone) || "—"}</p>
           <p><strong>Details:</strong><br/>${escapeHtml(details) || "—"}</p>

@@ -11,6 +11,14 @@ const {
   recordProfileView,
   resolveViewerFromRequest,
 } = require("../services/profileViewService");
+const {
+  slugify,
+  deslugify,
+  escapeRegex,
+  whatsappLink,
+  localPageTitle,
+  localPageDescription,
+} = require("../utils/localSeo");
 
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
@@ -128,10 +136,22 @@ router.get("/", async (req, res) => {
         profileCompletionScore: 1,
         createdAt: 1,
         portfolio: 1,
+        phone: 1,
+        socialLinks: 1,
       },
     });
 
-    const professionals = await User.aggregate(pipeline);
+    const rows = await User.aggregate(pipeline);
+
+    // Verified professionals carry a WhatsApp deep link; the number itself
+    // never leaves the server.
+    const professionals = rows.map(({ phone, socialLinks, ...rest }) => ({
+      ...rest,
+      whatsappUrl:
+        rest.workerVerificationStatus === "verified" || rest.isVerified
+          ? whatsappLink(socialLinks?.whatsapp || phone || socialLinks?.phone)
+          : null,
+    }));
 
     res.json({ professionals });
   } catch (err) {
@@ -192,6 +212,8 @@ router.get("/featured", async (req, res) => {
         experienceYears: 1,
         skills: 1,
         portfolio: 1,
+        phone: 1,
+        socialLinks: 1,
       },
     };
 
@@ -220,10 +242,206 @@ router.get("/featured", async (req, res) => {
       );
     }
 
-    res.json({ professionals });
+    res.json({
+      professionals: professionals.map(({ phone, socialLinks, ...rest }) => ({
+        ...rest,
+        whatsappUrl: whatsappLink(
+          socialLinks?.whatsapp || phone || socialLinks?.phone
+        ),
+      })),
+    });
   } catch (err) {
     console.error("FEATURED PROFESSIONALS ERROR:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// The landing pages are a discovery surface, not a directory dump: three cards
+// is enough to prove the network is real without revealing its size.
+const LOCAL_PAGE_CARD_LIMIT = 3;
+
+// Public listing shape for a landing page card. `phone` never leaves the server
+// on its own — only the pre-formatted wa.me link derived from it does.
+const LOCAL_CARD_PROJECTION = {
+  $project: {
+    _id: 1,
+    name: 1,
+    profilePicture: 1,
+    profileImage: 1,
+    primaryTrade: 1,
+    location: 1,
+    city: 1,
+    state: 1,
+    country: 1,
+    workerVerificationStatus: 1,
+    isVerified: 1,
+    experienceYears: 1,
+    availability: 1,
+    skills: 1,
+    portfolio: 1,
+    profileCompletionScore: 1,
+    phone: 1,
+    socialLinks: 1,
+  },
+};
+
+// A professional is on a landing page when their trade and their location both
+// match the slugs, using the same visibility rules as the directory.
+const localPageMatch = (tradeLabel, locationLabel) => ({
+  $or: [
+    { role: "jobseeker" },
+    {
+      role: { $in: ["user", "customer"] },
+      primaryTrade: { $exists: true, $nin: ["", null] },
+    },
+  ],
+  accountStatus: { $nin: ["suspended", "deactivated"] },
+  primaryTrade: { $regex: escapeRegex(tradeLabel), $options: "i" },
+  $and: [
+    { $or: [{ workerVerificationStatus: "verified" }, { isVerified: true }] },
+    buildPublicDirectoryEligibilityMatch(),
+    {
+      $or: [
+        { city: { $regex: escapeRegex(locationLabel), $options: "i" } },
+        { state: { $regex: escapeRegex(locationLabel), $options: "i" } },
+        { location: { $regex: escapeRegex(locationLabel), $options: "i" } },
+      ],
+    },
+  ],
+});
+
+// =========================
+// GET LOCALIZED TRADE LANDING PAGE
+// GET /api/professionals/local/:trade/:location
+// Backs the programmatic SEO pages: up to three ranked cards plus the title
+// and description the page renders. An empty result is a valid response — the
+// page falls back to its matchmaking block rather than 404ing, so the URL
+// keeps its ranking while we source someone.
+// Declared before /:id so "local" is not read as an id.
+// =========================
+router.get("/local/:trade/:location", async (req, res) => {
+  try {
+    const tradeLabel = deslugify(req.params.trade);
+    const locationLabel = deslugify(req.params.location);
+
+    if (!tradeLabel || !locationLabel) {
+      return res.status(400).json({ message: "Trade and location are required" });
+    }
+
+    const pipeline = buildPublicDirectoryRankingPipeline(
+      localPageMatch(tradeLabel, locationLabel)
+    );
+    pipeline.push({ $limit: LOCAL_PAGE_CARD_LIMIT }, LOCAL_CARD_PROJECTION);
+
+    const matches = await User.aggregate(pipeline);
+
+    const professionals = matches.map(({ phone, socialLinks, ...rest }) => ({
+      ...rest,
+      whatsappUrl: whatsappLink(
+        socialLinks?.whatsapp || phone || socialLinks?.phone
+      ),
+    }));
+
+    // The region shown in the title ("Lekki, Lagos") comes from the people we
+    // actually have there, so it stays accurate without a location table.
+    const region =
+      professionals.find(
+        (p) => p.state && p.state.toLowerCase() !== locationLabel.toLowerCase()
+      )?.state || "";
+
+    return res.json({
+      trade: tradeLabel,
+      tradeSlug: slugify(tradeLabel),
+      location: locationLabel,
+      locationSlug: slugify(locationLabel),
+      region,
+      title: localPageTitle(tradeLabel, locationLabel, region),
+      description: localPageDescription(tradeLabel, locationLabel, region),
+      professionals,
+    });
+  } catch (err) {
+    console.error("LOCAL TRADE PAGE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// DIRECTORY SITEMAP
+// GET /api/professionals/sitemap.xml
+// Regenerated on every request from the distinct trade/location pairs in the
+// database, so a landing page is listed the moment the artisan who created it
+// registers — no build step and nothing to keep in sync.
+// Declared before /:id so "sitemap.xml" is not read as an id.
+// =========================
+router.get("/sitemap.xml", async (req, res) => {
+  try {
+    const baseUrl = (
+      process.env.FRONTEND_URL || "https://craftbridgejobs.com"
+    ).replace(/\/+$/, "");
+
+    const rows = await User.aggregate([
+      {
+        $match: {
+          $or: [
+            { role: "jobseeker" },
+            {
+              role: { $in: ["user", "customer"] },
+              primaryTrade: { $exists: true, $nin: ["", null] },
+            },
+          ],
+          accountStatus: { $nin: ["suspended", "deactivated"] },
+          $and: [
+            {
+              $or: [
+                { workerVerificationStatus: "verified" },
+                { isVerified: true },
+              ],
+            },
+            buildPublicDirectoryEligibilityMatch(),
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            trade: { $toLower: "$primaryTrade" },
+            location: { $toLower: { $ifNull: ["$city", "$location"] } },
+          },
+          updatedAt: { $max: "$updatedAt" },
+        },
+      },
+    ]);
+
+    const urls = new Map();
+    for (const row of rows) {
+      const trade = slugify(row._id.trade);
+      const location = slugify(row._id.location);
+      if (!trade || !location) continue;
+
+      const loc = `${baseUrl}/professionals/${trade}/${location}`;
+      const lastmod = (row.updatedAt || new Date()).toISOString().split("T")[0];
+      const existing = urls.get(loc);
+      if (!existing || existing < lastmod) urls.set(loc, lastmod);
+    }
+
+    const xml =
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      [...urls.entries()]
+        .map(
+          ([loc, lastmod]) =>
+            `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n` +
+            "    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>"
+        )
+        .join("\n") +
+      "\n</urlset>";
+
+    res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=3600");
+    return res.send(xml);
+  } catch (err) {
+    console.error("DIRECTORY SITEMAP ERROR:", err);
+    return res.status(500).send("<error>Sitemap unavailable</error>");
   }
 });
 
@@ -327,6 +545,17 @@ router.get("/:id", async (req, res) => {
       delete result.resumeData;
       delete result.resumeText;
     }
+
+    // Verified professionals are reachable on WhatsApp straight from the
+    // profile. Only the deep link leaves the server, never the raw number.
+    const isVerifiedProfile =
+      professional.workerVerificationStatus === "verified" ||
+      professional.isVerified === true;
+    const whatsappSource =
+      professional.socialLinks?.whatsapp ||
+      professional.phone ||
+      professional.socialLinks?.phone;
+    result.whatsappUrl = isVerifiedProfile ? whatsappLink(whatsappSource) : null;
 
     result.hasResume = hasResume;
     result.hasContact = hasContact;
