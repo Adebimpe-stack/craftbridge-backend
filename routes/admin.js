@@ -21,6 +21,7 @@ const {
   notifyProfileVisible,
 } = require("../services/notificationService");
 const sendEmail = require("../utils/sendEmail");
+const { whatsappLink } = require("../utils/localSeo");
 
 let bulkEmailJobRunning = false;
 
@@ -1207,6 +1208,11 @@ router.get("/workers", auth, requireRole("admin"), async (req, res) => {
       obj.profileCompletion = profileCompletion;
       obj.isPubliclyEligible = isPubliclyEligible(w);
       obj.publicDirectoryStatusReasons = getPublicDirectoryIneligibilityReasons(w);
+      obj.whatsappReady = Boolean(
+        whatsappLink(
+          obj.socialLinks?.whatsapp || obj.phone || obj.socialLinks?.phone
+        )
+      );
       // Ensure admins can see phone numbers
       return obj;
     });

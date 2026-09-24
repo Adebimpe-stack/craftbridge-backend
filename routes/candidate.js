@@ -105,6 +105,15 @@ req.user.id
     user.phone = req.body.phone.trim();
   }
 
+  const phoneDigits = (user.phone || "").replace(/\D/g, "");
+
+  if (phoneDigits.length < 8) {
+    return res.status(400).json({
+      message:
+        "A valid phone number is required so clients can reach you on WhatsApp.",
+    });
+  }
+
   user.experienceYears =
     req.body.experienceYears ||
     user.experienceYears;
