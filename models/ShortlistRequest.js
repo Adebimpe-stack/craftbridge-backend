@@ -17,10 +17,11 @@ const shortlistRequestSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // "professional" when they asked for a technician, "business" for a company.
+    // "professional" for a technician, "business" for a service company and
+    // "agency" for a workforce supply / recruitment partner.
     recipientType: {
       type: String,
-      enum: ["professional", "business"],
+      enum: ["professional", "business", "agency"],
       default: "professional",
     },
 
