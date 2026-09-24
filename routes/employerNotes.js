@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
 const Company = require("../models/Company");
+const { whatsappLink } = require("../utils/localSeo");
 
 const requireBusinessAccount = (req, res, next) => {
   if (req.user?.role !== "employer") {
@@ -276,10 +277,34 @@ router.get("/saved/list", auth, async (req, res) => {
       ...owner,
       isSaved: true,
     })
-      .populate("professional", "name profilePicture primaryTrade location city state")
-      .sort({ updatedAt: -1 });
+      .populate(
+        "professional",
+        "name profilePicture primaryTrade location city state workerVerificationStatus isVerified phone socialLinks"
+      )
+      .sort({ updatedAt: -1 })
+      .lean();
 
-    res.json({ saved });
+    // Verified professionals carry a WhatsApp deep link; the number itself
+    // never leaves the server.
+    const rows = saved.map((entry) => {
+      const professional = entry.professional;
+      if (!professional) return entry;
+
+      const { phone, socialLinks, ...rest } = professional;
+
+      return {
+        ...entry,
+        professional: {
+          ...rest,
+          whatsappUrl:
+            rest.workerVerificationStatus === "verified" || rest.isVerified
+              ? whatsappLink(socialLinks?.whatsapp || phone || socialLinks?.phone)
+              : null,
+        },
+      };
+    });
+
+    res.json({ saved: rows });
   } catch (err) {
     console.error("LIST SAVED PROFESSIONALS ERROR:", err);
     res.status(500).json({ message: "Server error" });
