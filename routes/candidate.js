@@ -13,6 +13,12 @@ const Application =
 const VerificationLog =
   require("../models/VerificationLog");
 
+const { normalisePhone } =
+  require("../utils/sendSms");
+
+const { submitProfessionalPage } =
+  require("../services/directorySeoService");
+
 // GET ALL JOBS APPLIED BY USER
 
 router.get(
@@ -101,18 +107,23 @@ req.user.id
   user.location =
     req.body.location || user.location;
 
+  // Outbound WhatsApp and dialler links are built straight from this value,
+  // so it is stored in E.164 (spaces, dashes, brackets and the local leading
+  // zero removed, country code applied) rather than as typed.
   if (req.body.phone !== undefined) {
     user.phone = req.body.phone.trim();
   }
 
-  const phoneDigits = (user.phone || "").replace(/\D/g, "");
+  const e164Phone = normalisePhone(user.phone);
 
-  if (phoneDigits.length < 8) {
+  if (!e164Phone) {
     return res.status(400).json({
       message:
         "A valid phone number is required so clients can reach you on WhatsApp.",
     });
   }
+
+  user.phone = e164Phone;
 
   user.experienceYears =
     req.body.experienceYears ||
@@ -202,6 +213,10 @@ req.user.id
     },
     { returnDocument: "after", runValidators: false }
   );
+
+  // A saved profile can create a brand new trade/location landing page, so
+  // announce it to Google without making the artisan wait for the response.
+  submitProfessionalPage(updatedUser);
 
   res.json({
     message: "Profile updated",

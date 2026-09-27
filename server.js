@@ -65,6 +65,12 @@ const professionalsRoutes =
 const shortlistRequestRoutes =
   require("./routes/shortlistRequests");
 
+const telemetryRoutes =
+  require("./routes/telemetry");
+
+const { startDirectorySeoCron } =
+  require("./services/directorySeoService");
+
 const employerRoutes =
   require("./routes/employer");
 
@@ -289,6 +295,8 @@ app.use("/api/reports", reportRoutes);
 
 app.use("/api/shortlist-requests", shortlistRequestRoutes);
 
+app.use("/api/telemetry", telemetryRoutes);
+
 // Aggregator-facing feed, mounted at the root so the submitted URL stays
 // /feeds/jobs.xml, and under /api for consistency with the rest of the API.
 app.use("/", feedRoutes);
@@ -323,4 +331,6 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  // Nightly sweep that pushes newly populated trade/location pages to Google.
+  startDirectorySeoCron();
 });

@@ -4,7 +4,7 @@ const auth = require("../middleware/auth");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
 const Company = require("../models/Company");
-const { whatsappLink } = require("../utils/localSeo");
+const { whatsappLink, callLink } = require("../utils/localSeo");
 
 const requireBusinessAccount = (req, res, next) => {
   if (req.user?.role !== "employer") {
@@ -291,15 +291,16 @@ router.get("/saved/list", auth, async (req, res) => {
       if (!professional) return entry;
 
       const { phone, socialLinks, ...rest } = professional;
+      const source = socialLinks?.whatsapp || phone || socialLinks?.phone;
+      const reachable =
+        rest.workerVerificationStatus === "verified" || rest.isVerified;
 
       return {
         ...entry,
         professional: {
           ...rest,
-          whatsappUrl:
-            rest.workerVerificationStatus === "verified" || rest.isVerified
-              ? whatsappLink(socialLinks?.whatsapp || phone || socialLinks?.phone)
-              : null,
+          whatsappUrl: reachable ? whatsappLink(source) : null,
+          callUrl: reachable ? callLink(source) : null,
         },
       };
     });

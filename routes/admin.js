@@ -11,6 +11,7 @@ const Job = require("../models/Job");
 const Company = require("../models/Company");
 const VerificationLog = require("../models/VerificationLog");
 const BulkEmailHistory = require("../models/BulkEmailHistory");
+const OutboundClick = require("../models/OutboundClick");
 const { activateSubscription, deactivateSubscription } = require("../utils/syncSubscription");
 const {
   isPubliclyEligible,
@@ -2188,6 +2189,115 @@ router.post("/assign-ids", auth, requireRole("admin"), async (req, res) => {
   } catch (err) {
     console.error("ASSIGN IDS ERROR:", err);
     res.status(500).json({ message: "Failed to assign IDs" });
+  }
+});
+
+// =========================
+// OUTBOUND CONTACT METRICS
+// GET /api/admin/outbound-clicks?days=30
+// Transactions happen off-platform, so these clicks are the record of the
+// value the directory delivered: totals by conversion type, the artisans
+// being contacted, and the landing pages sending them.
+// =========================
+router.get("/outbound-clicks", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const range = { createdAt: { $gte: since } };
+
+    const [byType, byArtisan, byPage, byTrade, recent, allTime] =
+      await Promise.all([
+        OutboundClick.aggregate([
+          { $match: range },
+          { $group: { _id: "$type", count: { $sum: 1 } } },
+        ]),
+        OutboundClick.aggregate([
+          { $match: range },
+          {
+            $group: {
+              _id: "$artisan",
+              name: { $last: "$artisanName" },
+              trade: { $last: "$artisanTrade" },
+              whatsapp: {
+                $sum: { $cond: [{ $eq: ["$type", "whatsapp_click"] }, 1, 0] },
+              },
+              calls: {
+                $sum: { $cond: [{ $eq: ["$type", "phone_call_click"] }, 1, 0] },
+              },
+              total: { $sum: 1 },
+              lastClickAt: { $max: "$createdAt" },
+            },
+          },
+          { $sort: { total: -1 } },
+          { $limit: 50 },
+        ]),
+        OutboundClick.aggregate([
+          { $match: range },
+          {
+            $group: {
+              _id: "$targetLocationPage",
+              total: { $sum: 1 },
+              whatsapp: {
+                $sum: { $cond: [{ $eq: ["$type", "whatsapp_click"] }, 1, 0] },
+              },
+              calls: {
+                $sum: { $cond: [{ $eq: ["$type", "phone_call_click"] }, 1, 0] },
+              },
+            },
+          },
+          { $sort: { total: -1 } },
+          { $limit: 50 },
+        ]),
+        OutboundClick.aggregate([
+          { $match: range },
+          { $group: { _id: "$artisanTrade", total: { $sum: 1 } } },
+          { $sort: { total: -1 } },
+          { $limit: 20 },
+        ]),
+        OutboundClick.find(range)
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .select("artisan artisanName artisanTrade targetLocationPage type createdAt")
+          .lean(),
+        OutboundClick.countDocuments({}),
+      ]);
+
+    const totals = byType.reduce(
+      (acc, row) => ({ ...acc, [row._id]: row.count }),
+      { whatsapp_click: 0, phone_call_click: 0 }
+    );
+
+    res.json({
+      days,
+      allTime,
+      totals: {
+        ...totals,
+        total: totals.whatsapp_click + totals.phone_call_click,
+      },
+      artisans: byArtisan.map((row) => ({
+        artisanId: row._id,
+        name: row.name,
+        trade: row.trade,
+        whatsapp: row.whatsapp,
+        calls: row.calls,
+        total: row.total,
+        lastClickAt: row.lastClickAt,
+      })),
+      pages: byPage.map((row) => ({
+        page: row._id || "(unknown)",
+        total: row.total,
+        whatsapp: row.whatsapp,
+        calls: row.calls,
+      })),
+      trades: byTrade.map((row) => ({
+        trade: row._id || "(unknown)",
+        total: row.total,
+      })),
+      recent,
+    });
+  } catch (err) {
+    console.error("OUTBOUND CLICK METRICS ERROR:", err);
+    res.status(500).json({ message: "Failed to load outbound click metrics" });
   }
 });
 
