@@ -7,6 +7,7 @@
  */
 
 const { normalisePhone } = require("./sendSms");
+const { COUNTRIES } = require("./countries");
 
 const WHATSAPP_TEMPLATE =
   "Hello! I found your verified profile on CraftBridge and would like to discuss a job.";
@@ -41,6 +42,85 @@ const whatsappLink = (phone, message = WHATSAPP_TEMPLATE) => {
 };
 
 /**
+ * A `tel:` link for the native dialler. Same rule as the WhatsApp link: null
+ * when the number is unusable, so the button is not rendered.
+ */
+const callLink = (phone) => {
+  const e164 = normalisePhone(phone);
+  return e164 ? `tel:${e164}` : null;
+};
+
+// Country slugs the URLs may end with. The short forms are what people
+// actually type and link, so they resolve to the canonical country name.
+const COUNTRY_ALIASES = {
+  uk: "United Kingdom",
+  gb: "United Kingdom",
+  usa: "United States",
+  us: "United States",
+  uae: "United Arab Emirates",
+  ng: "Nigeria",
+};
+
+const COUNTRY_BY_SLUG = new Map(
+  COUNTRIES.map(({ name }) => [slugify(name), name])
+);
+
+/**
+ * The canonical landing page path: /plumbers-in-lekki-nigeria.
+ * Returns null when either half is missing, so the page is never generated
+ * with a dangling "-in-".
+ */
+const localSlug = (trade, city, country) => {
+  const tradeSlug = slugify(trade);
+  const citySlug = slugify(city);
+  const countrySlug = slugify(country);
+  if (!tradeSlug || !citySlug) return null;
+  return `${tradeSlug}-in-${[citySlug, countrySlug].filter(Boolean).join("-")}`;
+};
+
+/**
+ * Inverse of `localSlug`. The country is matched from the end of the slug
+ * against the known list, so multi-word cities and countries both survive the
+ * round trip:
+ *
+ *   "graphic-designers-in-london-uk"     -> designers in London, United Kingdom
+ *   "electricians-in-port-harcourt-nigeria" -> electricians in Port Harcourt, Nigeria
+ *
+ * Returns null when the slug is not a landing page URL at all.
+ */
+const parseLocalSlug = (slug) => {
+  const value = String(slug || "").toLowerCase();
+  const separator = value.lastIndexOf("-in-");
+  if (separator <= 0) return null;
+
+  const tradeSlug = value.slice(0, separator);
+  let rest = value.slice(separator + 4);
+  if (!tradeSlug || !rest) return null;
+
+  let country = "";
+  const parts = rest.split("-");
+  for (let take = Math.min(parts.length - 1, 4); take >= 1; take -= 1) {
+    const candidate = parts.slice(parts.length - take).join("-");
+    const match = COUNTRY_BY_SLUG.get(candidate) || COUNTRY_ALIASES[candidate];
+    if (match) {
+      country = match;
+      rest = parts.slice(0, parts.length - take).join("-");
+      break;
+    }
+  }
+
+  if (!rest) return null;
+
+  return {
+    trade: deslugify(tradeSlug),
+    tradeSlug,
+    location: deslugify(rest),
+    locationSlug: rest,
+    country,
+  };
+};
+
+/**
  * Title tag targeting the local search query, e.g.
  * "Find Verified & Vetted Plumbers in Lekki, Lagos | CraftBridge".
  * The region is dropped when we don't know it rather than rendering ", ".
@@ -59,6 +139,9 @@ module.exports = {
   deslugify,
   escapeRegex,
   whatsappLink,
+  callLink,
+  localSlug,
+  parseLocalSlug,
   localPageTitle,
   localPageDescription,
 };

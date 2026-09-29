@@ -22,7 +22,7 @@ const protect =
 const upload =
   require("../middleware/upload");
 
-const { whatsappLink } =
+const { whatsappLink, callLink } =
   require("../utils/localSeo");
 
 // ==============================
@@ -951,17 +951,18 @@ router.get(
         })
         .lean();
 
-      // Verified professionals carry a WhatsApp deep link; the number itself
-      // never leaves the server.
+      // Verified professionals carry WhatsApp and dialler deep links; the
+      // number itself never leaves the server.
       const directory = talent.map(
-        ({ phone, socialLinks, ...rest }) => ({
-          ...rest,
-          whatsappUrl: whatsappLink(
-            socialLinks?.whatsapp ||
-              phone ||
-              socialLinks?.phone
-          ),
-        })
+        ({ phone, socialLinks, ...rest }) => {
+          const source =
+            socialLinks?.whatsapp || phone || socialLinks?.phone;
+          return {
+            ...rest,
+            whatsappUrl: whatsappLink(source),
+            callUrl: callLink(source),
+          };
+        }
       );
 
       res.json(directory);

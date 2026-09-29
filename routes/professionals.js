@@ -16,9 +16,20 @@ const {
   deslugify,
   escapeRegex,
   whatsappLink,
+  callLink,
+  localSlug,
+  parseLocalSlug,
   localPageTitle,
   localPageDescription,
 } = require("../utils/localSeo");
+const { livePermutations } = require("../utils/directoryPages");
+
+// Every public card carries the two outbound actions and never the number
+// itself, so a hirer can reach the artisan without an account.
+const contactLinks = (phone, socialLinks) => {
+  const source = socialLinks?.whatsapp || phone || socialLinks?.phone;
+  return { whatsappUrl: whatsappLink(source), callUrl: callLink(source) };
+};
 
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
@@ -147,10 +158,9 @@ router.get("/", async (req, res) => {
     // never leaves the server.
     const professionals = rows.map(({ phone, socialLinks, ...rest }) => ({
       ...rest,
-      whatsappUrl:
-        rest.workerVerificationStatus === "verified" || rest.isVerified
-          ? whatsappLink(socialLinks?.whatsapp || phone || socialLinks?.phone)
-          : null,
+      ...(rest.workerVerificationStatus === "verified" || rest.isVerified
+        ? contactLinks(phone, socialLinks)
+        : { whatsappUrl: null, callUrl: null }),
     }));
 
     res.json({ professionals });
@@ -245,9 +255,7 @@ router.get("/featured", async (req, res) => {
     res.json({
       professionals: professionals.map(({ phone, socialLinks, ...rest }) => ({
         ...rest,
-        whatsappUrl: whatsappLink(
-          socialLinks?.whatsapp || phone || socialLinks?.phone
-        ),
+        ...contactLinks(phone, socialLinks),
       })),
     });
   } catch (err) {
@@ -287,28 +295,91 @@ const LOCAL_CARD_PROJECTION = {
 
 // A professional is on a landing page when their trade and their location both
 // match the slugs, using the same visibility rules as the directory.
-const localPageMatch = (tradeLabel, locationLabel) => ({
-  $or: [
-    { role: "jobseeker" },
-    {
-      role: { $in: ["user", "customer"] },
-      primaryTrade: { $exists: true, $nin: ["", null] },
+const localPageMatch = (tradeLabel, locationLabel, countryLabel) => {
+  const match = {
+    $or: [
+      { role: "jobseeker" },
+      {
+        role: { $in: ["user", "customer"] },
+        primaryTrade: { $exists: true, $nin: ["", null] },
+      },
+    ],
+    accountStatus: { $nin: ["suspended", "deactivated"] },
+    // URLs read as plurals ("plumbers-in-lekki") while profiles store the
+    // singular trade, so the trailing "s" is optional on both sides.
+    primaryTrade: {
+      $regex: `${escapeRegex(tradeLabel.replace(/s$/i, ""))}s?`,
+      $options: "i",
     },
-  ],
-  accountStatus: { $nin: ["suspended", "deactivated"] },
-  primaryTrade: { $regex: escapeRegex(tradeLabel), $options: "i" },
-  $and: [
-    { $or: [{ workerVerificationStatus: "verified" }, { isVerified: true }] },
-    buildPublicDirectoryEligibilityMatch(),
-    {
+    $and: [
+      { $or: [{ workerVerificationStatus: "verified" }, { isVerified: true }] },
+      buildPublicDirectoryEligibilityMatch(),
+      {
+        $or: [
+          { city: { $regex: escapeRegex(locationLabel), $options: "i" } },
+          { state: { $regex: escapeRegex(locationLabel), $options: "i" } },
+          { location: { $regex: escapeRegex(locationLabel), $options: "i" } },
+        ],
+      },
+    ],
+  };
+
+  // Profiles saved before the country field existed have no country, so they
+  // stay on the page rather than disappearing from an indexed URL.
+  if (countryLabel) {
+    match.$and.push({
       $or: [
-        { city: { $regex: escapeRegex(locationLabel), $options: "i" } },
-        { state: { $regex: escapeRegex(locationLabel), $options: "i" } },
-        { location: { $regex: escapeRegex(locationLabel), $options: "i" } },
+        { country: { $regex: escapeRegex(countryLabel), $options: "i" } },
+        { country: { $in: ["", null] } },
+        { country: { $exists: false } },
       ],
-    },
-  ],
-});
+    });
+  }
+
+  return match;
+};
+
+// Shared by the slug route and the legacy /local/:trade/:location route.
+const localPagePayload = async (tradeLabel, locationLabel, countryLabel) => {
+  const pipeline = buildPublicDirectoryRankingPipeline(
+    localPageMatch(tradeLabel, locationLabel, countryLabel)
+  );
+  pipeline.push({ $limit: LOCAL_PAGE_CARD_LIMIT }, LOCAL_CARD_PROJECTION);
+
+  const matches = await User.aggregate(pipeline);
+
+  const professionals = matches.map(({ phone, socialLinks, ...rest }) => ({
+    ...rest,
+    ...contactLinks(phone, socialLinks),
+  }));
+
+  // The region shown in the title ("Lekki, Lagos") comes from the people we
+  // actually have there, so it stays accurate without a location table.
+  const region =
+    professionals.find(
+      (p) => p.state && p.state.toLowerCase() !== locationLabel.toLowerCase()
+    )?.state || "";
+
+  const country =
+    countryLabel ||
+    professionals.find((p) => p.country)?.country ||
+    "";
+  const titleRegion = country || region;
+
+  return {
+    trade: tradeLabel,
+    tradeSlug: slugify(tradeLabel),
+    location: locationLabel,
+    locationSlug: slugify(locationLabel),
+    country,
+    countrySlug: slugify(country),
+    region,
+    slug: localSlug(tradeLabel, locationLabel, country),
+    title: localPageTitle(tradeLabel, locationLabel, titleRegion),
+    description: localPageDescription(tradeLabel, locationLabel, titleRegion),
+    professionals,
+  };
+};
 
 // =========================
 // GET LOCALIZED TRADE LANDING PAGE
@@ -328,39 +399,47 @@ router.get("/local/:trade/:location", async (req, res) => {
       return res.status(400).json({ message: "Trade and location are required" });
     }
 
-    const pipeline = buildPublicDirectoryRankingPipeline(
-      localPageMatch(tradeLabel, locationLabel)
-    );
-    pipeline.push({ $limit: LOCAL_PAGE_CARD_LIMIT }, LOCAL_CARD_PROJECTION);
-
-    const matches = await User.aggregate(pipeline);
-
-    const professionals = matches.map(({ phone, socialLinks, ...rest }) => ({
-      ...rest,
-      whatsappUrl: whatsappLink(
-        socialLinks?.whatsapp || phone || socialLinks?.phone
-      ),
-    }));
-
-    // The region shown in the title ("Lekki, Lagos") comes from the people we
-    // actually have there, so it stays accurate without a location table.
-    const region =
-      professionals.find(
-        (p) => p.state && p.state.toLowerCase() !== locationLabel.toLowerCase()
-      )?.state || "";
-
-    return res.json({
-      trade: tradeLabel,
-      tradeSlug: slugify(tradeLabel),
-      location: locationLabel,
-      locationSlug: slugify(locationLabel),
-      region,
-      title: localPageTitle(tradeLabel, locationLabel, region),
-      description: localPageDescription(tradeLabel, locationLabel, region),
-      professionals,
-    });
+    return res.json(await localPagePayload(tradeLabel, locationLabel, ""));
   } catch (err) {
     console.error("LOCAL TRADE PAGE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// GET LANDING PAGE BY SLUG
+// GET /api/professionals/page/:slug  (e.g. plumbers-in-lekki-nigeria)
+// The canonical programmatic URL. The slug carries trade, city and country,
+// so one route serves every permutation without a stored page table.
+// =========================
+router.get("/page/:slug", async (req, res) => {
+  try {
+    const parsed = parseLocalSlug(req.params.slug);
+    if (!parsed) {
+      return res.status(404).json({ message: "Unknown directory page" });
+    }
+
+    return res.json(
+      await localPagePayload(parsed.trade, parsed.location, parsed.country)
+    );
+  } catch (err) {
+    console.error("LOCAL TRADE SLUG PAGE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// DIRECTORY INDEX
+// GET /api/professionals/local-index
+// Every live trade/city/country permutation, for the Explore Trades page and
+// the internal links Google follows into the landing pages.
+// =========================
+router.get("/local-index", async (req, res) => {
+  try {
+    const rows = await livePermutations();
+    return res.json({ count: rows.length, pages: rows });
+  } catch (err) {
+    console.error("DIRECTORY INDEX ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -379,49 +458,11 @@ router.get("/sitemap.xml", async (req, res) => {
       process.env.FRONTEND_URL || "https://craftbridgejobs.com"
     ).replace(/\/+$/, "");
 
-    const rows = await User.aggregate([
-      {
-        $match: {
-          $or: [
-            { role: "jobseeker" },
-            {
-              role: { $in: ["user", "customer"] },
-              primaryTrade: { $exists: true, $nin: ["", null] },
-            },
-          ],
-          accountStatus: { $nin: ["suspended", "deactivated"] },
-          $and: [
-            {
-              $or: [
-                { workerVerificationStatus: "verified" },
-                { isVerified: true },
-              ],
-            },
-            buildPublicDirectoryEligibilityMatch(),
-          ],
-        },
-      },
-      {
-        $group: {
-          _id: {
-            trade: { $toLower: "$primaryTrade" },
-            location: { $toLower: { $ifNull: ["$city", "$location"] } },
-          },
-          updatedAt: { $max: "$updatedAt" },
-        },
-      },
-    ]);
-
     const urls = new Map();
-    for (const row of rows) {
-      const trade = slugify(row._id.trade);
-      const location = slugify(row._id.location);
-      if (!trade || !location) continue;
-
-      const loc = `${baseUrl}/professionals/${trade}/${location}`;
-      const lastmod = (row.updatedAt || new Date()).toISOString().split("T")[0];
+    for (const page of await livePermutations()) {
+      const loc = `${baseUrl}/${page.slug}`;
       const existing = urls.get(loc);
-      if (!existing || existing < lastmod) urls.set(loc, lastmod);
+      if (!existing || existing < page.lastmod) urls.set(loc, page.lastmod);
     }
 
     const xml =
@@ -546,16 +587,17 @@ router.get("/:id", async (req, res) => {
       delete result.resumeText;
     }
 
-    // Verified professionals are reachable on WhatsApp straight from the
-    // profile. Only the deep link leaves the server, never the raw number.
+    // Verified professionals are reachable on WhatsApp or by phone straight
+    // from the profile, with no account. Only the links leave the server,
+    // never the raw number.
     const isVerifiedProfile =
       professional.workerVerificationStatus === "verified" ||
       professional.isVerified === true;
-    const whatsappSource =
-      professional.socialLinks?.whatsapp ||
-      professional.phone ||
-      professional.socialLinks?.phone;
-    result.whatsappUrl = isVerifiedProfile ? whatsappLink(whatsappSource) : null;
+    const links = isVerifiedProfile
+      ? contactLinks(professional.phone, professional.socialLinks)
+      : { whatsappUrl: null, callUrl: null };
+    result.whatsappUrl = links.whatsappUrl;
+    result.callUrl = links.callUrl;
 
     result.hasResume = hasResume;
     result.hasContact = hasContact;
