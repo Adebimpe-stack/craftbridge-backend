@@ -80,10 +80,19 @@ router.post("/", requestLimiter, async (req, res) => {
 
     const viewer = await optionalViewer(req);
 
+    const recipient = ["business", "agency"].includes(recipientType)
+      ? recipientType
+      : "professional";
+    const recipientLabel = {
+      business: "Service business",
+      agency: "Recruitment / workforce supply agency",
+      professional: "Technician / professional",
+    }[recipient];
+
     const request = await ShortlistRequest.create({
       role: neededRole,
       sector,
-      recipientType: recipientType === "business" ? "business" : "professional",
+      recipientType: recipient,
       location,
       hires,
       details,
@@ -107,7 +116,7 @@ router.post("/", requestLimiter, async (req, res) => {
           <h2>New shortlist request</h2>
           <p><strong>Role:</strong> ${escapeHtml(neededRole)}</p>
           <p><strong>Sector:</strong> ${escapeHtml(sector) || "—"}</p>
-          <p><strong>Looking for:</strong> ${recipientType === "business" ? "Service business" : "Technician / professional"}</p>
+          <p><strong>Looking for:</strong> ${recipientLabel}</p>
           <p><strong>Location:</strong> ${escapeHtml(location) || "—"}</p>
           <p><strong>Hires needed:</strong> ${escapeHtml(hires) || "—"}</p>
           <p><strong>Contact:</strong> ${escapeHtml(contactName)} (${escapeHtml(email) || "no email"})</p>
