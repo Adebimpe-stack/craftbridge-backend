@@ -50,6 +50,25 @@ const callLink = (phone) => {
   return e164 ? `tel:${e164}` : null;
 };
 
+// The number an artisan is reached on: a dedicated WhatsApp number wins over
+// the profile phone.
+const contactSource = ({ phone, socialLinks } = {}) =>
+  socialLinks?.whatsapp || phone || socialLinks?.phone;
+
+// Public responses only say which buttons to show. The links themselves are
+// handed out by POST /api/telemetry/contact once the client leaves a name and
+// phone number, so every contact is traceable.
+const contactChannels = (contact, reachable = true) => {
+  const source = reachable ? contactSource(contact) : null;
+  return {
+    canWhatsapp: Boolean(whatsappLink(source)),
+    canCall: Boolean(callLink(source)),
+  };
+};
+
+const contactMessage = (clientName, refCode) =>
+  `Hello! I'm ${clientName}. I found your profile on CraftBridge and would like to discuss a job. (Ref: ${refCode})`;
+
 // Country slugs the URLs may end with. The short forms are what people
 // actually type and link, so they resolve to the canonical country name.
 const COUNTRY_ALIASES = {
@@ -140,6 +159,9 @@ module.exports = {
   escapeRegex,
   whatsappLink,
   callLink,
+  contactSource,
+  contactChannels,
+  contactMessage,
   localSlug,
   parseLocalSlug,
   localPageTitle,

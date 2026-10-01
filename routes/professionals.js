@@ -15,8 +15,7 @@ const {
   slugify,
   deslugify,
   escapeRegex,
-  whatsappLink,
-  callLink,
+  contactChannels,
   localSlug,
   parseLocalSlug,
   localPageTitle,
@@ -24,12 +23,7 @@ const {
 } = require("../utils/localSeo");
 const { livePermutations } = require("../utils/directoryPages");
 
-// Every public card carries the two outbound actions and never the number
-// itself, so a hirer can reach the artisan without an account.
-const contactLinks = (phone, socialLinks) => {
-  const source = socialLinks?.whatsapp || phone || socialLinks?.phone;
-  return { whatsappUrl: whatsappLink(source), callUrl: callLink(source) };
-};
+const contactLinks = (phone, socialLinks) => contactChannels({ phone, socialLinks });
 
 const PUBLIC_FIELDS =
   "-password -emailVerificationToken -resetPasswordToken";
@@ -154,13 +148,13 @@ router.get("/", async (req, res) => {
 
     const rows = await User.aggregate(pipeline);
 
-    // Verified professionals carry a WhatsApp deep link; the number itself
-    // never leaves the server.
+    // Verified professionals carry contact flags; the number itself never
+    // leaves the server.
     const professionals = rows.map(({ phone, socialLinks, ...rest }) => ({
       ...rest,
       ...(rest.workerVerificationStatus === "verified" || rest.isVerified
         ? contactLinks(phone, socialLinks)
-        : { whatsappUrl: null, callUrl: null }),
+        : { canWhatsapp: false, canCall: false }),
     }));
 
     res.json({ professionals });
@@ -587,17 +581,14 @@ router.get("/:id", async (req, res) => {
       delete result.resumeText;
     }
 
-    // Verified professionals are reachable on WhatsApp or by phone straight
-    // from the profile, with no account. Only the links leave the server,
-    // never the raw number.
+    // Verified professionals are reachable on WhatsApp or by phone once the
+    // client leaves their details; only the flags leave the server here.
     const isVerifiedProfile =
       professional.workerVerificationStatus === "verified" ||
       professional.isVerified === true;
-    const links = isVerifiedProfile
-      ? contactLinks(professional.phone, professional.socialLinks)
-      : { whatsappUrl: null, callUrl: null };
-    result.whatsappUrl = links.whatsappUrl;
-    result.callUrl = links.callUrl;
+    const channels = contactChannels(professional, isVerifiedProfile);
+    result.canWhatsapp = channels.canWhatsapp;
+    result.canCall = channels.canCall;
 
     result.hasResume = hasResume;
     result.hasContact = hasContact;
