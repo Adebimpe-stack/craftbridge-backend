@@ -129,7 +129,7 @@ router.post("/", requestLimiter, async (req, res) => {
 
     res.status(201).json({
       message:
-        "Thank you. Our team will review your requirements and come back to you with matched, vetted providers.",
+        "Thank you. Our team will review your requirements and come back to you with matched, experienced providers.",
       requestId: request._id,
     });
   } catch (err) {
