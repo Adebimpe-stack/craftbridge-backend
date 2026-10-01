@@ -10,12 +10,21 @@ const TeamInvitation = require("../models/TeamInvitation");
 const Application = require("../models/Application");
 const { sendInvitationEmail } = require("../services/emailService");
 
-// =========================
-// OPTIONAL AUTH HELPER
-// Attaches req.user if a valid token is provided, otherwise continues
-// =========================
+// Up to two portfolio items for the directory card; featured ones win.
+const previewWorkImages = (portfolio = []) =>
+  [...portfolio]
+    .filter((item) => item?.url)
+    .sort((a, b) => Number(!!b.isFeatured) - Number(!!a.isFeatured))
+    .slice(0, 2)
+    .map((item) => ({
+      url: item.url,
+      type: item.type || "image",
+      caption: item.caption || item.title || "",
+    }));
+
 const normalizeCompany = (company) => ({
   _id: company._id,
+  workImages: previewWorkImages(company.portfolio || []),
   name: company.name || "Unnamed Company",
   logo: company.logo || "",
   description: company.description || "",
@@ -31,6 +40,10 @@ const normalizeCompany = (company) => ({
   organizationType: company.organizationType || "service_business",
 });
 
+// =========================
+// OPTIONAL AUTH HELPER
+// Attaches req.user if a valid token is provided, otherwise continues
+// =========================
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
