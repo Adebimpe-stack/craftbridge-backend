@@ -10,7 +10,7 @@ const { normalisePhone } = require("./sendSms");
 const { COUNTRIES } = require("./countries");
 
 const WHATSAPP_TEMPLATE =
-  "Hello! I found your verified profile on CraftBridge and would like to discuss a job.";
+  "Hello! I found your profile on CraftBridge and would like to discuss a job.";
 
 const slugify = (value) =>
   String(value || "")
@@ -122,16 +122,16 @@ const parseLocalSlug = (slug) => {
 
 /**
  * Title tag targeting the local search query, e.g.
- * "Find Verified & Vetted Plumbers in Lekki, Lagos | CraftBridge".
+ * "Find Experienced Plumbers in Lekki, Lagos | CraftBridge".
  * The region is dropped when we don't know it rather than rendering ", ".
  */
 const localPageTitle = (trade, location, region) =>
-  `Find Verified & Vetted ${trade} in ${[location, region].filter(Boolean).join(", ")} | CraftBridge`;
+  `Find Experienced ${trade} in ${[location, region].filter(Boolean).join(", ")} | CraftBridge`;
 
 const localPageDescription = (trade, location, region) =>
-  `Hire verified and vetted ${trade.toLowerCase()} in ${[location, region]
+  `Hire experienced ${trade.toLowerCase()} in ${[location, region]
     .filter(Boolean)
-    .join(", ")}. CraftBridge screens every professional and connects you directly, with no agency fees.`;
+    .join(", ")}. Compare profiles and past work on CraftBridge, then contact them directly with no agency fees.`;
 
 module.exports = {
   WHATSAPP_TEMPLATE,

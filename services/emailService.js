@@ -176,7 +176,7 @@ const sendWelcomeEmail = async ({ to, name, role }) => {
         cta: "Find Professionals",
         link: "https://craftbridgejobs.com/professionals",
         tips: [
-          "Browse verified professionals",
+          "Browse experienced professionals",
           "Request services directly",
           "Save your favorite providers",
           "Track your service requests"
