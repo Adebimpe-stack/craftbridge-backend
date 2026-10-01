@@ -26,6 +26,12 @@ const outboundClickSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Who made contact. Clients leave a name and phone number before the
+    // WhatsApp or call link is revealed, and the reference code travels in the
+    // WhatsApp message so either side can quote it in a report.
+    clientName: { type: String, default: "", trim: true },
+    clientPhone: { type: String, default: "", index: true },
+    refCode: { type: String, index: true },
     referrer: { type: String, default: "" },
     userAgent: { type: String, default: "" },
     ip: { type: String, default: "" },

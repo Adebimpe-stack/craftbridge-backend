@@ -2205,6 +2205,21 @@ router.get("/outbound-clicks", auth, requireRole("admin"), async (req, res) => {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const range = { createdAt: { $gte: since } };
 
+    // Looking up a reported contact by its reference code or the client's
+    // phone number searches all time, not just the selected range.
+    const lookup = String(req.query.lookup || "").trim();
+    const lookupDigits = lookup.replace(/\D/g, "");
+    const recentFilter = lookup
+      ? {
+          $or: [
+            { refCode: lookup.toUpperCase() },
+            ...(lookupDigits.length >= 4
+              ? [{ clientPhone: { $regex: lookupDigits } }]
+              : []),
+          ],
+        }
+      : range;
+
     const [byType, byArtisan, byPage, byTrade, recent, allTime] =
       await Promise.all([
         OutboundClick.aggregate([
@@ -2254,10 +2269,12 @@ router.get("/outbound-clicks", auth, requireRole("admin"), async (req, res) => {
           { $sort: { total: -1 } },
           { $limit: 20 },
         ]),
-        OutboundClick.find(range)
+        OutboundClick.find(recentFilter)
           .sort({ createdAt: -1 })
-          .limit(50)
-          .select("artisan artisanName artisanTrade targetLocationPage type createdAt")
+          .limit(100)
+          .select(
+            "artisan artisanName artisanTrade targetLocationPage type clientName clientPhone refCode ip createdAt"
+          )
           .lean(),
         OutboundClick.countDocuments({}),
       ]);

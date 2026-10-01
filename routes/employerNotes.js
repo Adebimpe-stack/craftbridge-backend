@@ -4,7 +4,7 @@ const auth = require("../middleware/auth");
 const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ServiceRequest = require("../models/ServiceRequest");
 const Company = require("../models/Company");
-const { whatsappLink, callLink } = require("../utils/localSeo");
+const { contactChannels } = require("../utils/localSeo");
 
 const requireBusinessAccount = (req, res, next) => {
   if (req.user?.role !== "employer") {
@@ -284,14 +284,13 @@ router.get("/saved/list", auth, async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    // Verified professionals carry a WhatsApp deep link; the number itself
-    // never leaves the server.
+    // Verified professionals carry contact flags; the number itself never
+    // leaves the server.
     const rows = saved.map((entry) => {
       const professional = entry.professional;
       if (!professional) return entry;
 
       const { phone, socialLinks, ...rest } = professional;
-      const source = socialLinks?.whatsapp || phone || socialLinks?.phone;
       const reachable =
         rest.workerVerificationStatus === "verified" || rest.isVerified;
 
@@ -299,8 +298,7 @@ router.get("/saved/list", auth, async (req, res) => {
         ...entry,
         professional: {
           ...rest,
-          whatsappUrl: reachable ? whatsappLink(source) : null,
-          callUrl: reachable ? callLink(source) : null,
+          ...contactChannels({ phone, socialLinks }, reachable),
         },
       };
     });
