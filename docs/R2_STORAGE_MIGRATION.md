@@ -59,7 +59,7 @@ Old S3 links keep working while AWS is active, so the site does not break at any
 
 Open a few profiles, local trade pages and an admin verification page and confirm photos
 and documents load. After about a week with no problems, empty and delete the S3 bucket
-and close the AWS account (this step), then remove the `AWS_*` lines from `.env`.
+and close the AWS account, then remove the `AWS_*` lines from `.env`.
 
 ## Rollback
 
