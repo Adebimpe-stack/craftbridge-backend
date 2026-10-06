@@ -1,7 +1,11 @@
 const multer = require("multer");
 const multerS3 = require("multer-s3");
 const path = require("path");
-const { S3Client } = require("@aws-sdk/client-s3");
+const {
+  getStorage,
+  missingStorageConfig,
+  publicUrlForKey,
+} = require("../config/storage");
 
 const allowedMimeTypes = [
   "application/pdf",
@@ -39,15 +43,21 @@ const allowedExtensions = [
   ".avi",
 ];
 
-const requiredConfig = [
-  "AWS_REGION",
-  "AWS_ACCESS_KEY",
-  "AWS_SECRET_KEY",
-  "AWS_BUCKET_NAME",
-];
+const missingConfig = missingStorageConfig;
 
-const missingConfig = () =>
-  requiredConfig.filter((key) => !process.env[key]);
+// The S3 API endpoint of providers like R2 is private, so stored file URLs
+// must use the bucket's public domain instead of the upload response URL.
+const withPublicUrls = (storage, publicUrl) => ({
+  _handleFile(req, file, cb) {
+    storage._handleFile(req, file, (err, info) => {
+      if (err || !info) return cb(err, info);
+      cb(null, { ...info, location: publicUrlForKey(publicUrl, info.key) });
+    });
+  },
+  _removeFile(req, file, cb) {
+    storage._removeFile(req, file, cb);
+  },
+});
 
 const fileFilter = (req, file, cb) => {
   const mimetype = String(file.mimetype || "").toLowerCase();
@@ -81,54 +91,50 @@ const buildUpload = () => {
     return null;
   }
 
-  const s3 = new S3Client({
-    region: process.env.AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY,
-      secretAccessKey: process.env.AWS_SECRET_KEY,
+  const { client, bucket, publicUrl } = getStorage();
+
+  const storage = multerS3({
+    s3: client,
+    bucket,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    metadata(req, file, cb) {
+      cb(null, {
+        fieldName: file.fieldname,
+      });
+    },
+    key(req, file, cb) {
+      let folder = "uploads";
+
+      if (file.fieldname === "verificationDocuments") {
+        folder = "verification-documents";
+      }
+
+      if (file.fieldname === "profilePicture") {
+        folder = "profile-pictures";
+      }
+
+      if (file.fieldname === "companyLogo") {
+        folder = "company-logos";
+      }
+
+      if (file.fieldname === "resume") {
+        folder = "resumes";
+      }
+
+      if (file.fieldname === "portfolioImages" || file.fieldname === "portfolioVideos") {
+        folder = "portfolio";
+      }
+
+      const uniqueName = `${folder}/${Date.now()}-${Math.round(
+        Math.random() * 1e9
+      )}${path.extname(file.originalname)}`;
+
+      cb(null, uniqueName);
     },
   });
 
   return multer({
-    storage: multerS3({
-      s3,
-      bucket: process.env.AWS_BUCKET_NAME,
-      contentType: multerS3.AUTO_CONTENT_TYPE,
-      metadata(req, file, cb) {
-        cb(null, {
-          fieldName: file.fieldname,
-        });
-      },
-      key(req, file, cb) {
-        let folder = "uploads";
-
-        if (file.fieldname === "verificationDocuments") {
-          folder = "verification-documents";
-        }
-
-        if (file.fieldname === "profilePicture") {
-          folder = "profile-pictures";
-        }
-
-        if (file.fieldname === "companyLogo") {
-          folder = "company-logos";
-        }
-
-        if (file.fieldname === "resume") {
-          folder = "resumes";
-        }
-
-        if (file.fieldname === "portfolioImages" || file.fieldname === "portfolioVideos") {
-          folder = "portfolio";
-        }
-
-        const uniqueName = `${folder}/${Date.now()}-${Math.round(
-          Math.random() * 1e9
-        )}${path.extname(file.originalname)}`;
-
-        cb(null, uniqueName);
-      },
-    }),
+    storage: publicUrl ? withPublicUrls(storage, publicUrl) : storage,
     limits: {
       fileSize: 50 * 1024 * 1024, // Increased to 50MB for videos
     },
