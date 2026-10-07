@@ -19,6 +19,37 @@ const { normalisePhone } =
 const { submitProfessionalPage } =
   require("../services/directorySeoService");
 
+const PUBLIC_PROFILE_FIELDS = [
+  "headline",
+  "phone",
+  "location",
+  "experienceYears",
+  "bio",
+  "availability",
+  "primaryTrade",
+  "city",
+  "state",
+  "country",
+  "skills",
+  "certifications",
+  "profilePicture",
+];
+
+const sameValue = (a, b) =>
+  JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
+
+// Stamps a public profile change so admins can see recent edits and re-check
+// verified professionals whose details moved after approval.
+const profileChangeFields = (user) => ({
+  profileUpdatedAt: new Date(),
+  ...(user.workerVerificationStatus === "verified"
+    ? {
+        profileUpdatedAfterVerification: true,
+        profileUpdatedAfterVerificationAt: new Date(),
+      }
+    : {}),
+});
+
 // GET ALL JOBS APPLIED BY USER
 
 router.get(
@@ -100,6 +131,8 @@ req.user.id
       message: "User not found",
     });
   }
+
+  const before = user.toObject();
 
   user.headline =
     req.body.headline || user.headline;
@@ -193,6 +226,11 @@ req.user.id
     ...newPortfolioVideos,
   ];
 
+  const profileChanged =
+    newPortfolioImages.length > 0 ||
+    newPortfolioVideos.length > 0 ||
+    PUBLIC_PROFILE_FIELDS.some((field) => !sameValue(before[field], user[field]));
+
   const updatedUser = await User.findByIdAndUpdate(
     req.user.id,
     {
@@ -210,6 +248,7 @@ req.user.id
       certifications: user.certifications,
       profilePicture: user.profilePicture,
       portfolio: updatedPortfolio,
+      ...(profileChanged ? profileChangeFields(user) : {}),
     },
     { returnDocument: "after", runValidators: false }
   );
@@ -348,9 +387,14 @@ router.delete(
         (item) => item._id?.toString() !== req.params.itemId
       );
 
+      const removed = updatedPortfolio.length !== (user.portfolio || []).length;
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user.id,
-        { portfolio: updatedPortfolio },
+        {
+          portfolio: updatedPortfolio,
+          ...(removed ? profileChangeFields(user) : {}),
+        },
         { returnDocument: "after", runValidators: false }
       );
 
