@@ -1286,6 +1286,45 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
 });
 
 // =======================
+// PIN / UNPIN A WORKER ON THE HOMEPAGE SHOWROOM
+// =======================
+router.put("/workers/:id/homepage-feature", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, role: "jobseeker" },
+      { featuredOnHomepage: req.body?.featured === true },
+      { returnDocument: "after", runValidators: false }
+    ).select("featuredOnHomepage");
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+
+    res.json({
+      message: user.featuredOnHomepage ? "Pinned to homepage" : "Removed from homepage pins",
+      featuredOnHomepage: user.featuredOnHomepage,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// MARK A VERIFIED WORKER'S PROFILE CHANGES AS REVIEWED
+// =======================
+router.put("/workers/:id/review-changes", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, role: "jobseeker" },
+      { profileUpdatedAfterVerification: false, profileUpdatedAfterVerificationAt: null },
+      { returnDocument: "after", runValidators: false }
+    ).select("_id");
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+
+    res.json({ message: "Profile changes marked as reviewed" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // UPDATE WORKER PROFILE (admin edit)
 // =======================
 router.put(

@@ -164,11 +164,29 @@ router.get("/", async (req, res) => {
   }
 });
 
+const FEATURED_ROTATION_POOL = 200;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Fills the showroom tier by tier, sliding each tier's window by the number of
+// slots it fills per day so every member of a tier gets a turn.
+const dailyShowroom = (tiers, limit, day) => {
+  const picked = [];
+  for (const tier of tiers) {
+    const take = Math.min(limit - picked.length, tier.length);
+    if (take <= 0) continue;
+    const start = (day * take) % tier.length;
+    for (let i = 0; i < take; i += 1) {
+      picked.push(tier[(start + i) % tier.length]);
+    }
+  }
+  return picked;
+};
+
 // =========================
 // GET FEATURED PROFESSIONALS
 // GET /api/professionals/featured?limit=5
-// A hard-capped showroom for the homepage: verified professionals with work
-// samples only, so the public never learns how large the network actually is.
+// A hard-capped, daily-rotating showroom for the homepage, so the public never
+// learns how large the network actually is.
 // Declared before /:id so "featured" is not read as an id.
 // =========================
 router.get("/featured", async (req, res) => {
@@ -221,30 +239,38 @@ router.get("/featured", async (req, res) => {
       },
     };
 
-    const topRanked = async (matchStage, count, excludeIds = []) => {
-      if (count <= 0) return [];
-      if (excludeIds.length) matchStage._id = { $nin: excludeIds };
-
+    const rankedIds = async (matchStage) => {
       const pipeline = buildPublicDirectoryRankingPipeline(matchStage);
-      pipeline.push({ $limit: count }, projection);
-      return User.aggregate(pipeline);
+      pipeline.push({ $limit: FEATURED_ROTATION_POOL }, { $project: { _id: 1 } });
+      return (await User.aggregate(pipeline)).map((p) => p._id);
     };
 
-    const withPortfolio = baseMatch();
-    withPortfolio.$and.push({ portfolio: { $exists: true, $not: { $size: 0 } } });
+    const pool = (...conditions) => {
+      const match = baseMatch();
+      match.$and.push(...conditions);
+      return rankedIds(match);
+    };
 
-    // Work samples first, but a young network shouldn't leave the showroom
-    // empty, so the remaining slots fall back to top-ranked verified profiles.
-    const professionals = await topRanked(withPortfolio, limit);
-    if (professionals.length < limit) {
-      professionals.push(
-        ...(await topRanked(
-          baseMatch(),
-          limit - professionals.length,
-          professionals.map((p) => p._id)
-        ))
-      );
-    }
+    const hasPortfolio = { portfolio: { $exists: true, $not: { $size: 0 } } };
+    const notPinned = { featuredOnHomepage: { $ne: true } };
+
+    // Admin pins first, then work samples, then other eligible profiles so a
+    // young network never leaves the showroom empty.
+    const [pinned, withPortfolio, others] = await Promise.all([
+      pool({ featuredOnHomepage: true }),
+      pool(notPinned, hasPortfolio),
+      pool(notPinned, { $nor: [hasPortfolio] }),
+    ]);
+
+    const ids = dailyShowroom(
+      [pinned, withPortfolio, others],
+      limit,
+      Math.floor(Date.now() / DAY_MS)
+    );
+
+    const docs = await User.aggregate([{ $match: { _id: { $in: ids } } }, projection]);
+    const byId = new Map(docs.map((d) => [String(d._id), d]));
+    const professionals = ids.map((id) => byId.get(String(id))).filter(Boolean);
 
     res.json({
       professionals: professionals.map(({ phone, socialLinks, ...rest }) => ({

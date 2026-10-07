@@ -352,6 +352,15 @@ resumeData: {
         type: Date,
       },
 
+      profileUpdatedAt: {
+        type: Date,
+      },
+
+      featuredOnHomepage: {
+        type: Boolean,
+        default: false,
+      },
+
       companyEmail: {
         type: String,
         trim: true,
