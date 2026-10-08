@@ -51,6 +51,9 @@ const escapeHtml = (value = "") =>
 const jsonLdScript = (schema) =>
   JSON.stringify(schema).replace(/</g, "\\u003c");
 
+const isExpired = (job) =>
+  !!job.applicationDeadline && new Date(job.applicationDeadline) < new Date();
+
 const plainText = (value = "") =>
   String(value).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -66,7 +69,7 @@ router.get("/:id/seo-html", async (req, res) => {
     const job = await Job.findOne(query)
       .populate("companyId", "name logo verificationStatus isActive");
 
-    if (!job || job.status !== "active" || job.isDeleted) {
+    if (!job || job.status !== "active" || job.isDeleted || isExpired(job)) {
       return res.status(404).send("Job not found");
     }
 
@@ -121,6 +124,11 @@ router.get("/sitemap.xml", async (req, res) => {
     const jobs = await Job.find({
       status: "active",
       isDeleted: false,
+      $or: [
+        { applicationDeadline: { $exists: false } },
+        { applicationDeadline: null },
+        { applicationDeadline: { $gte: new Date() } },
+      ],
     })
       .populate("companyId", "isActive")
       .select("slug updatedAt")
