@@ -72,6 +72,64 @@ router.get("/", async (req, res) => {
   }
 });
 
+const frontendUrl = () =>
+  (process.env.FRONTEND_URL || "https://craftbridgejobs.com").replace(/\/+$/, "");
+
+const escapeXml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+// =========================
+// PUBLIC: SITEMAP OF PUBLISHED ARTICLES
+// GET /api/blog/sitemap.xml
+// Declared before /:slug so "sitemap.xml" is not read as a slug.
+// =========================
+router.get("/sitemap.xml", async (req, res) => {
+  try {
+    const blogs = await Blog.find({ status: "published" })
+      .select("slug updatedAt publishedAt")
+      .sort({ publishedAt: -1 })
+      .lean();
+
+    const base = frontendUrl();
+    const day = (date) => new Date(date || Date.now()).toISOString().split("T")[0];
+    const latest = blogs[0]?.updatedAt || blogs[0]?.publishedAt;
+
+    const urls = [
+      { loc: `${base}/blog`, lastmod: day(latest), changefreq: "weekly", priority: "0.6" },
+      ...blogs.map((blog) => ({
+        loc: `${base}/blog/${blog.slug}`,
+        lastmod: day(blog.updatedAt || blog.publishedAt),
+        changefreq: "monthly",
+        priority: "0.7",
+      })),
+    ];
+
+    const xml =
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      urls
+        .map(
+          (u) =>
+            `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n` +
+            `    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>\n`
+        )
+        .join("") +
+      "</urlset>";
+
+    res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(xml);
+  } catch (err) {
+    console.error("BLOG SITEMAP ERROR:", err);
+    res.status(500).json({ message: "Error generating sitemap" });
+  }
+});
+
 // =========================
 // PUBLIC: GET SINGLE BLOG BY SLUG
 // GET /api/blog/:slug

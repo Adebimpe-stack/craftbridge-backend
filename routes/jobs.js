@@ -51,6 +51,19 @@ const escapeHtml = (value = "") =>
 const jsonLdScript = (schema) =>
   JSON.stringify(schema).replace(/</g, "\\u003c");
 
+const openJobQuery = () => ({
+  status: "active",
+  isDeleted: false,
+  $or: [
+    { applicationDeadline: { $exists: false } },
+    { applicationDeadline: null },
+    { applicationDeadline: { $gte: new Date() } },
+  ],
+});
+
+const isExpired = (job) =>
+  !!job.applicationDeadline && new Date(job.applicationDeadline) < new Date();
+
 const plainText = (value = "") =>
   String(value).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -66,7 +79,7 @@ router.get("/:id/seo-html", async (req, res) => {
     const job = await Job.findOne(query)
       .populate("companyId", "name logo verificationStatus isActive");
 
-    if (!job || job.status !== "active" || job.isDeleted) {
+    if (!job || job.status !== "active" || job.isDeleted || isExpired(job)) {
       return res.status(404).send("Job not found");
     }
 
@@ -118,10 +131,7 @@ router.get("/:id/seo-html", async (req, res) => {
 // =========================
 router.get("/sitemap.xml", async (req, res) => {
   try {
-    const jobs = await Job.find({
-      status: "active",
-      isDeleted: false,
-    })
+    const jobs = await Job.find(openJobQuery())
       .populate("companyId", "isActive")
       .select("slug updatedAt")
       .sort({ updatedAt: -1 });
@@ -408,10 +418,7 @@ router.get(
 
     try {
 
-      const jobs = await Job.find({
-        status: "active",
-        isDeleted: false,
-      })
+      const jobs = await Job.find(openJobQuery())
         .populate("companyId", "name verificationStatus subscriptionActive isActive")
         .sort({ createdAt: -1 });
 
@@ -450,10 +457,7 @@ router.get(
 
 router.get("/global", async (req, res) => {
   try {
-    const jobs = await Job.find({
-      status: "active",
-      isDeleted: false,
-    })
+    const jobs = await Job.find(openJobQuery())
       .populate("companyId", "name verificationStatus isActive")
       .sort({ createdAt: -1 });
 

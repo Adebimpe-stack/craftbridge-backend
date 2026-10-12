@@ -25,7 +25,7 @@ const blogSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ["technical", "industry", "career", "news"],
+      enum: ["hiring", "safety", "technical", "industry", "career", "news"],
       default: "technical",
     },
 
@@ -55,11 +55,11 @@ const blogSchema = new mongoose.Schema(
       },
       text: {
         type: String,
-        default: "🚀 Companies are sourcing professionals like you via CraftBridge. Click here to register.",
+        default: "Are you a technician or tradesperson? Get found by clients near you on CraftBridge.",
       },
       ctaLink: {
         type: String,
-        default: "/register",
+        default: "/register?type=professional",
       },
       backgroundColor: {
         type: String,
@@ -78,19 +78,19 @@ const blogSchema = new mongoose.Schema(
       },
       title: {
         type: String,
-        default: "Join CraftBridge",
+        default: "Need a professional?",
       },
       description: {
         type: String,
-        default: "Connect with top employers and grow your professional career.",
+        default: "Browse electricians, plumbers, technicians and more near you, or post a custom request.",
       },
       ctaText: {
         type: String,
-        default: "Join as a Professional",
+        default: "Explore Trades",
       },
       ctaLink: {
         type: String,
-        default: "/register",
+        default: "/explore-trades",
       },
     },
 
