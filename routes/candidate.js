@@ -231,6 +231,18 @@ req.user.id
     newPortfolioVideos.length > 0 ||
     PUBLIC_PROFILE_FIELDS.some((field) => !sameValue(before[field], user[field]));
 
+  // The consent time is taken from the server clock, and kept from the first
+  // agreement so re-saving the profile does not overwrite it.
+  const consentFields =
+    req.body.publicConsent === "true"
+      ? {
+          publicConsent: true,
+          publicConsentAt: user.publicConsent && user.publicConsentAt
+            ? user.publicConsentAt
+            : new Date(),
+        }
+      : {};
+
   const updatedUser = await User.findByIdAndUpdate(
     req.user.id,
     {
@@ -249,6 +261,7 @@ req.user.id
       profilePicture: user.profilePicture,
       portfolio: updatedPortfolio,
       ...(profileChanged ? profileChangeFields(user) : {}),
+      ...consentFields,
     },
     { returnDocument: "after", runValidators: false }
   );
