@@ -481,7 +481,7 @@ router.get("/directory", async (req, res) => {
         { workerVerificationStatus: { $in: [null, "", "none"] }, isVerified: true },
       ],
     })
-      .select("-password -emailVerificationToken -resetPasswordToken")
+      .select("-password -emailVerificationToken -resetPasswordToken -workerVerificationDocuments -verificationEvidence -verificationDocuments")
       .sort({ createdAt: -1 });
 
     res.json(professionals);

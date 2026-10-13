@@ -49,8 +49,14 @@ const livePermutations = async () => {
     },
   ]);
 
+  // "Electrician" and "Electricians" share a page; the plural label wins.
+  const trades = new Set(rows.map((row) => row._id.trade));
+  const canonicalTrade = (trade) =>
+    trade && !trade.endsWith("s") && trades.has(`${trade}s`) ? `${trade}s` : trade;
+
   const pages = new Map();
   for (const row of rows) {
+    row._id.trade = canonicalTrade(row._id.trade);
     const slug = localSlug(row._id.trade, row._id.location, row._id.country);
     if (!slug) continue;
 
