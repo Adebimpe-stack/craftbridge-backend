@@ -68,6 +68,9 @@ const shortlistRequestRoutes =
 const telemetryRoutes =
   require("./routes/telemetry");
 
+const reviewRoutes =
+  require("./routes/reviews");
+
 const { startDirectorySeoCron } =
   require("./services/directorySeoService");
 
@@ -296,6 +299,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/shortlist-requests", shortlistRequestRoutes);
 
 app.use("/api/telemetry", telemetryRoutes);
+
+app.use("/api/reviews", reviewRoutes);
 
 // Aggregator-facing feed, mounted at the root so the submitted URL stays
 // /feeds/jobs.xml, and under /api for consistency with the rest of the API.

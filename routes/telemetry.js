@@ -5,6 +5,7 @@ const rateLimit = require("express-rate-limit");
 const auth = require("../middleware/auth");
 const OutboundClick = require("../models/OutboundClick");
 const User = require("../models/User");
+const Review = require("../models/Review");
 const { normalisePhone } = require("../utils/sendSms");
 const {
   whatsappLink,
@@ -116,7 +117,17 @@ router.get("/my-enquiries", auth, async (req, res) => {
       .select("type clientName clientPhone refCode targetLocationPage createdAt")
       .lean();
 
-    res.json({ enquiries });
+    const reviewed = new Set(
+      (
+        await Review.find({ contact: { $in: enquiries.map((e) => e._id) } })
+          .select("contact")
+          .lean()
+      ).map((r) => String(r.contact))
+    );
+
+    res.json({
+      enquiries: enquiries.map((e) => ({ ...e, reviewed: reviewed.has(String(e._id)) })),
+    });
   } catch (err) {
     console.error("MY ENQUIRIES ERROR:", err);
     res.status(500).json({ message: "Server error" });

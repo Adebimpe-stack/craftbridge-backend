@@ -361,6 +361,17 @@ resumeData: {
         default: false,
       },
 
+      // Denormalised from published reviews by routes/reviews.js.
+      ratingAverage: {
+        type: Number,
+        default: 0,
+      },
+
+      ratingCount: {
+        type: Number,
+        default: 0,
+      },
+
       companyEmail: {
         type: String,
         trim: true,
