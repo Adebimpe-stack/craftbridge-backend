@@ -9,6 +9,8 @@ const TeamInvitation = require("../models/TeamInvitation");
 const sendEmail = require("../utils/sendEmail");
 const { sendWelcomeEmail } = require("../services/emailService");
 
+const MIN_PASSWORD_LENGTH = 8;
+
 
 
 // ==============================
@@ -32,6 +34,12 @@ router.post(
         companyName,
         organizationType,
       } = req.body;
+
+      if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({
+          message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        });
+      }
 
       // CHECK EXISTING USER
       const existingUser =
@@ -659,6 +667,12 @@ router.post(
         token,
         password,
       } = req.body;
+
+      if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({
+          message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        });
+      }
 
       const user =
         await User.findOne({
