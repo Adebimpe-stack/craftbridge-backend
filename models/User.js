@@ -361,6 +361,16 @@ resumeData: {
         default: false,
       },
 
+      // Agreement to show the profile, portfolio and phone number publicly.
+      publicConsent: {
+        type: Boolean,
+        default: false,
+      },
+
+      publicConsentAt: {
+        type: Date,
+      },
+
       // Denormalised from published reviews by routes/reviews.js.
       ratingAverage: {
         type: Number,
