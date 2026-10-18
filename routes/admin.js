@@ -1307,6 +1307,48 @@ router.put("/workers/:id/homepage-feature", auth, requireRole("admin"), async (r
 });
 
 // =======================
+// SET THE CERTIFYING BODIES SHOWN ON A WORKER'S PROFILE
+// =======================
+router.put("/workers/:id/certified-by", auth, requireRole("admin"), async (req, res) => {
+  try {
+    if (!Array.isArray(req.body?.bodies)) {
+      return res.status(400).json({ message: "bodies must be a list" });
+    }
+
+    const seen = new Set();
+    const bodies = [];
+    for (const raw of req.body.bodies) {
+      const body = String(raw || "").trim().replace(/\s+/g, " ");
+      const key = body.toLowerCase();
+      if (!body || seen.has(key)) continue;
+      if (body.length > 80) {
+        return res.status(400).json({ message: "Each certifying body must be 80 characters or fewer" });
+      }
+      seen.add(key);
+      bodies.push(body);
+    }
+    if (bodies.length > 10) {
+      return res.status(400).json({ message: "Add at most 10 certifying bodies" });
+    }
+
+    const user = await User.findOne({ _id: req.params.id, role: "jobseeker" }).select("certifiedBy");
+    if (!user) return res.status(404).json({ message: "Worker not found" });
+
+    const existing = new Map((user.certifiedBy || []).map((c) => [c.body.toLowerCase(), c.addedAt]));
+    const certifiedBy = bodies.map((body) => ({
+      body,
+      addedAt: existing.get(body.toLowerCase()) || new Date(),
+    }));
+
+    await User.updateOne({ _id: user._id }, { $set: { certifiedBy } }, { runValidators: false });
+
+    res.json({ message: "Certifications updated", certifiedBy });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // MARK A VERIFIED WORKER'S PROFILE CHANGES AS REVIEWED
 // =======================
 router.put("/workers/:id/review-changes", auth, requireRole("admin"), async (req, res) => {

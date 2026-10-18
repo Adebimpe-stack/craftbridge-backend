@@ -382,6 +382,15 @@ resumeData: {
         default: 0,
       },
 
+      // Certifying bodies confirmed and added by an admin; shown publicly.
+      certifiedBy: [
+        {
+          body: { type: String, trim: true },
+          addedAt: { type: Date, default: Date.now },
+          _id: false,
+        },
+      ],
+
       companyEmail: {
         type: String,
         trim: true,
