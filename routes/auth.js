@@ -3,13 +3,160 @@ const Company = require("../models/Company");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
 const router = express.Router();
 const User = require("../models/User");
 const TeamInvitation = require("../models/TeamInvitation");
 const sendEmail = require("../utils/sendEmail");
 const { sendWelcomeEmail } = require("../services/emailService");
 
+const MIN_PASSWORD_LENGTH = 8;
 
+const resendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please try again in an hour." },
+});
+
+
+
+async function sendVerificationEmail(user) {
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
+  await User.findByIdAndUpdate(
+    user._id,
+    { emailVerificationToken: verificationToken },
+    { runValidators: false }
+  );
+
+  const verifyUrl =
+    `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
+  const email = user.email;
+
+  await sendEmail({
+
+    to: email,
+
+    subject:
+      "Verify Your CraftBridge Jobs Account",
+
+    html: `
+
+      <div
+        style="
+          background:#f8fafc;
+          padding:40px 20px;
+          font-family:Arial,sans-serif;
+        "
+      >
+
+        <div
+          style="
+            max-width:520px;
+            margin:auto;
+            background:white;
+            border-radius:16px;
+            padding:40px;
+            box-shadow:
+              0 10px 30px rgba(0,0,0,0.05);
+            text-align:left;
+          "
+        >
+
+          <h1
+            style="
+              color:#166534;
+              margin-bottom:10px;
+              font-size:32px;
+            "
+          >
+            Welcome to CraftBridge Jobs
+          </h1>
+
+          <p
+            style="
+              color:#475569;
+              font-size:16px;
+              line-height:1.7;
+            "
+          >
+            Thank you for creating
+            your account.
+          </p>
+
+          <p
+            style="
+              color:#475569;
+              font-size:16px;
+              line-height:1.7;
+            "
+          >
+            Please verify your
+            email address to
+            activate your account
+            and continue using
+            the platform.
+          </p>
+
+          <a
+            href="${verifyUrl}"
+
+            style="
+              display:inline-block;
+              margin-top:25px;
+              background:#166534;
+              color:white;
+              text-decoration:none;
+              padding:14px 24px;
+              border-radius:10px;
+              font-weight:600;
+              font-size:15px;
+            "
+          >
+            Verify Email
+          </a>
+
+          <p
+            style="
+              margin-top:35px;
+              color:#94a3b8;
+              font-size:13px;
+              line-height:1.6;
+            "
+          >
+            If you didn't create a
+            CraftBridge account,
+            you can safely ignore
+            this email.
+          </p>
+
+          <hr
+            style="
+              margin:30px 0;
+              border:none;
+              border-top:1px solid #e2e8f0;
+            "
+          />
+
+          <p
+            style="
+              color:#94a3b8;
+              font-size:12px;
+            "
+          >
+            © 2026 CraftBridge Jobs
+          </p>
+
+        </div>
+
+      </div>
+
+    `,
+
+  });
+}
 
 // ==============================
 // REGISTER
@@ -32,6 +179,12 @@ router.post(
         companyName,
         organizationType,
       } = req.body;
+
+      if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({
+          message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        });
+      }
 
       // CHECK EXISTING USER
       const existingUser =
@@ -152,144 +305,7 @@ router.post(
       }
 
 
-      // CREATE VERIFICATION TOKEN
-      const verificationToken =
-        crypto
-          .randomBytes(32)
-          .toString("hex");
-
-      await User.findByIdAndUpdate(
-        user._id,
-        { emailVerificationToken: verificationToken },
-        { runValidators: false }
-      );
-
-      // VERIFY URL
-      const verifyUrl =
-        `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
-
-      // SEND EMAIL
-      await sendEmail({
-
-        to: email,
-
-        subject:
-          "Verify Your CraftBridge Jobs Account",
-
-        html: `
-
-          <div
-            style="
-              background:#f8fafc;
-              padding:40px 20px;
-              font-family:Arial,sans-serif;
-            "
-          >
-
-            <div
-              style="
-                max-width:520px;
-                margin:auto;
-                background:white;
-                border-radius:16px;
-                padding:40px;
-                box-shadow:
-                  0 10px 30px rgba(0,0,0,0.05);
-                text-align:left;
-              "
-            >
-
-              <h1
-                style="
-                  color:#166534;
-                  margin-bottom:10px;
-                  font-size:32px;
-                "
-              >
-                Welcome to CraftBridge Jobs
-              </h1>
-
-              <p
-                style="
-                  color:#475569;
-                  font-size:16px;
-                  line-height:1.7;
-                "
-              >
-                Thank you for creating
-                your account.
-              </p>
-
-              <p
-                style="
-                  color:#475569;
-                  font-size:16px;
-                  line-height:1.7;
-                "
-              >
-                Please verify your
-                email address to
-                activate your account
-                and continue using
-                the platform.
-              </p>
-
-              <a
-                href="${verifyUrl}"
-
-                style="
-                  display:inline-block;
-                  margin-top:25px;
-                  background:#166534;
-                  color:white;
-                  text-decoration:none;
-                  padding:14px 24px;
-                  border-radius:10px;
-                  font-weight:600;
-                  font-size:15px;
-                "
-              >
-                Verify Email
-              </a>
-
-              <p
-                style="
-                  margin-top:35px;
-                  color:#94a3b8;
-                  font-size:13px;
-                  line-height:1.6;
-                "
-              >
-                If you didn't create a
-                CraftBridge account,
-                you can safely ignore
-                this email.
-              </p>
-
-              <hr
-                style="
-                  margin:30px 0;
-                  border:none;
-                  border-top:1px solid #e2e8f0;
-                "
-              />
-
-              <p
-                style="
-                  color:#94a3b8;
-                  font-size:12px;
-                "
-              >
-                © 2026 CraftBridge Jobs
-              </p>
-
-            </div>
-
-          </div>
-
-        `,
-
-      });
+      await sendVerificationEmail(user);
 
       // Send welcome email immediately after registration
       await sendWelcomeEmail({
@@ -329,6 +345,31 @@ router.post(
 
   }
 );
+
+// ==============================
+// RESEND VERIFICATION EMAIL
+// ==============================
+
+router.post("/resend-verification", resendLimiter, async (req, res) => {
+  const genericMessage =
+    "If your account needs verification, a new verification email has been sent.";
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email }).select("_id email isVerified");
+    if (user && !user.isVerified) {
+      await sendVerificationEmail(user);
+    }
+
+    return res.json({ message: genericMessage });
+  } catch (error) {
+    console.error("RESEND VERIFICATION ERROR:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 // ==============================
 // VERIFY EMAIL
@@ -659,6 +700,12 @@ router.post(
         token,
         password,
       } = req.body;
+
+      if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({
+          message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        });
+      }
 
       const user =
         await User.findOne({
