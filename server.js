@@ -68,6 +68,9 @@ const shortlistRequestRoutes =
 const telemetryRoutes =
   require("./routes/telemetry");
 
+const reviewRoutes =
+  require("./routes/reviews");
+
 const tradeTestInterestRoutes =
   require("./routes/tradeTestInterest");
 
@@ -299,6 +302,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/shortlist-requests", shortlistRequestRoutes);
 
 app.use("/api/telemetry", telemetryRoutes);
+
+app.use("/api/reviews", reviewRoutes);
 
 app.use("/api/trade-test-interest", tradeTestInterestRoutes);
 
