@@ -2041,6 +2041,82 @@ router.post("/verification/:id/note", auth, requireRole("admin"), async (req, re
 });
 
 // =======================
+// CONVERT A SERVICE BUSINESS ACCOUNT INTO A PROFESSIONAL
+// Moves the owner's business details onto their own professional profile and
+// takes the business out of the business directory.
+// =======================
+router.put("/employers/:id/convert-to-professional", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const primaryTrade = String(req.body.primaryTrade || "").trim();
+    if (!primaryTrade) {
+      return res.status(400).json({ message: "Choose the professional's trade" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role !== "employer") {
+      return res.status(400).json({ message: "Only business accounts can be converted" });
+    }
+
+    const company = user.companyId
+      ? await Company.findById(user.companyId)
+      : await Company.findOne({ owner: user._id });
+
+    if (company && company.owner?.toString() !== user._id.toString()) {
+      return res.status(400).json({ message: "Only the business owner's account can be converted" });
+    }
+
+    const pick = (current, fallback) =>
+      current && String(current).trim() ? current : fallback || current;
+
+    const portfolio = user.portfolio?.length
+      ? user.portfolio
+      : (company?.portfolio || []).map(({ title, description, category, completionYear, isFeatured, url, caption, type }) => ({
+          title, description, category, completionYear, isFeatured, url, caption, type,
+        }));
+
+    const companyVerified = company?.verificationStatus === "verified";
+
+    await User.findByIdAndUpdate(
+      user._id,
+      {
+        $set: {
+          role: "jobseeker",
+          primaryTrade,
+          name: pick(company?.name, user.name),
+          headline: pick(user.headline, company?.name),
+          professionalSummary: pick(user.professionalSummary, company?.description),
+          bio: pick(user.bio, company?.description),
+          location: pick(user.location, company?.location),
+          city: pick(user.city, company?.location),
+          phone: pick(user.phone, company?.phone),
+          profilePicture: pick(user.profilePicture, company?.logo),
+          portfolio,
+          availability: pick(user.availability, "available"),
+          workerVerificationStatus: companyVerified ? "verified" : user.workerVerificationStatus || "none",
+          profileUpdatedAt: new Date(),
+        },
+        $unset: { companyId: "", companyRole: "" },
+      },
+      { runValidators: false }
+    );
+
+    if (company) {
+      await Company.findByIdAndUpdate(
+        company._id,
+        { isActive: false, deactivatedAt: new Date(), deactivatedBy: req.user._id },
+        { runValidators: false }
+      );
+    }
+
+    res.json({ message: "Moved to professionals" });
+  } catch (err) {
+    console.error("employers/:id/convert-to-professional error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
 // UPDATE ORGANIZATION TYPE
 // Allows admins to correct or change an organization's classification.
 // =======================
