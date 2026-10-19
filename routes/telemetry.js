@@ -7,6 +7,7 @@ const OutboundClick = require("../models/OutboundClick");
 const User = require("../models/User");
 const Review = require("../models/Review");
 const { normalisePhone } = require("../utils/sendSms");
+const { createNotification } = require("../services/notificationService");
 const {
   whatsappLink,
   callLink,
@@ -95,6 +96,13 @@ router.post("/contact", contactLimiter, async (req, res) => {
       userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
       ip: req.ip || req.connection?.remoteAddress || "",
     });
+
+    createNotification({
+      recipientId: artisan._id,
+      type: "client_contact",
+      data: { clientName: name, method: type, refCode, link: "/jobseeker-dashboard" },
+      email: true,
+    }).catch((err) => console.error("CLIENT CONTACT NOTIFICATION ERROR:", err));
 
     return res.status(201).json({ url, refCode });
   } catch (err) {

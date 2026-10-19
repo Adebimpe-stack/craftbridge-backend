@@ -8,6 +8,7 @@ const Review = require("../models/Review");
 const OutboundClick = require("../models/OutboundClick");
 const User = require("../models/User");
 const { normalisePhone } = require("../utils/sendSms");
+const { createNotification } = require("../services/notificationService");
 
 const router = express.Router();
 
@@ -163,6 +164,13 @@ router.post("/", reviewLimiter, async (req, res) => {
     });
 
     await refreshRating(contact.artisan);
+
+    createNotification({
+      recipientId: contact.artisan,
+      type: "review_received",
+      data: { clientName: contact.clientName, rating: score, link: `/professionals/${contact.artisan}` },
+      email: true,
+    }).catch((err) => console.error("REVIEW NOTIFICATION ERROR:", err));
 
     return res.status(201).json({ review: publicReview(review) });
   } catch (err) {

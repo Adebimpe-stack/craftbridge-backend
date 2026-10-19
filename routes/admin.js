@@ -22,6 +22,7 @@ const {
   notifyProfileVisible,
 } = require("../services/notificationService");
 const sendEmail = require("../utils/sendEmail");
+const { getStorefront } = require("../services/storefrontService");
 const { whatsappLink } = require("../utils/localSeo");
 
 let bulkEmailJobRunning = false;
@@ -1280,6 +1281,60 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     }
 
     res.json({ message: `Worker ${status} successfully` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// A WORKER'S DIGITAL STOREFRONT
+// =======================
+router.get("/workers/:id/storefront", auth, requireRole("admin"), async (req, res) => {
+  try {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+      return res.status(404).json({ message: "Worker not found" });
+    }
+    const storefront = await getStorefront(req.params.id);
+    if (!storefront) return res.status(404).json({ message: "Worker not found" });
+    res.json(storefront);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// SEND A WORKER A REQUEST OR "PROFILE SHARED" NOTICE
+// =======================
+const WORKER_NOTICE_TYPES = { request: "admin_request", shared: "profile_shared" };
+
+router.post("/workers/:id/notify", auth, requireRole("admin"), async (req, res) => {
+  try {
+    const type = WORKER_NOTICE_TYPES[req.body?.kind];
+    if (!type) return res.status(400).json({ message: "kind must be request or shared" });
+
+    const title = String(req.body.title || "").trim();
+    const message = String(req.body.message || "").trim();
+    if (title.length > 100) return res.status(400).json({ message: "Title must be 100 characters or fewer" });
+    if (message.length > 1000) return res.status(400).json({ message: "Message must be 1000 characters or fewer" });
+    if (type === "admin_request" && !message) {
+      return res.status(400).json({ message: "Please write the request details" });
+    }
+
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+      return res.status(404).json({ message: "Worker not found" });
+    }
+    const worker = await User.exists({ _id: req.params.id, role: "jobseeker" });
+    if (!worker) return res.status(404).json({ message: "Worker not found" });
+
+    const notification = await createNotification({
+      recipientId: req.params.id,
+      type,
+      data: { title, message, link: "/notifications", sentBy: req.user._id },
+      email: true,
+    });
+    if (!notification) return res.status(500).json({ message: "Could not send notification" });
+
+    res.status(201).json({ message: "Notification sent" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

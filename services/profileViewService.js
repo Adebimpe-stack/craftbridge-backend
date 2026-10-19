@@ -4,6 +4,10 @@ const { createNotification } = require("./notificationService");
 // Prevent duplicate refreshes from the same viewer/IP within this window.
 const VIEW_COOLDOWN_MINUTES = 5;
 
+const EARLY_VIEW_MILESTONES = [1, 10, 25, 50];
+const isViewMilestone = (count) =>
+  EARLY_VIEW_MILESTONES.includes(count) || (count > 0 && count % 100 === 0);
+
 /**
  * Record a profile view unless it should be excluded or is a duplicate within
  * the cooldown window.
@@ -56,14 +60,12 @@ async function recordProfileView({
     source,
   });
 
-  // Notify professionals at view milestones (e.g., every 50 views).
-  // This is intentionally lightweight and deterministic so it does not spam.
   const totalViews = await ProfileView.countDocuments({ professional: professionalId });
-  if (totalViews > 0 && totalViews % 50 === 0) {
+  if (isViewMilestone(totalViews)) {
     createNotification({
       recipientId: professionalId,
       type: "profile_activity",
-      data: { viewCount: totalViews },
+      data: { viewCount: totalViews, link: "/jobseeker-dashboard" },
     }).catch((err) => console.error("PROFILE ACTIVITY NOTIFICATION ERROR:", err));
   }
 
