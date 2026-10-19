@@ -18,6 +18,8 @@ const { normalisePhone } =
 
 const { submitProfessionalPage } =
   require("../services/directorySeoService");
+const { notifyProfileVisible } =
+  require("../services/notificationService");
 
 const PUBLIC_PROFILE_FIELDS = [
   "headline",
@@ -269,6 +271,10 @@ req.user.id
   // A saved profile can create a brand new trade/location landing page, so
   // announce it to Google without making the artisan wait for the response.
   submitProfessionalPage(updatedUser);
+
+  notifyProfileVisible(updatedUser, before).catch((err) =>
+    console.error("PROFILE VISIBLE NOTIFICATION ERROR:", err)
+  );
 
   res.json({
     message: "Profile updated",

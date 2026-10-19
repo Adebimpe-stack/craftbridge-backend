@@ -10,6 +10,7 @@ const EmployerProfessionalNote = require("../models/EmployerProfessionalNote");
 const ProfileView = require("../models/ProfileView");
 const { isPubliclyEligible } = require("../utils/professionalRanking");
 const { getProfileViewAnalytics } = require("../services/profileViewService");
+const { getStorefront } = require("../services/storefrontService");
 
 // =========================
 // HELPERS
@@ -277,6 +278,21 @@ router.get("/professional", auth, async (req, res) => {
     });
   } catch (err) {
     console.error("PROFESSIONAL DASHBOARD ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// =========================
+// MY DIGITAL STOREFRONT
+// GET /api/dashboard/storefront
+// =========================
+router.get("/storefront", auth, async (req, res) => {
+  try {
+    const storefront = await getStorefront(req.user._id);
+    if (!storefront) return res.status(404).json({ message: "Storefront not found" });
+    res.json(storefront);
+  } catch (err) {
+    console.error("STOREFRONT ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
