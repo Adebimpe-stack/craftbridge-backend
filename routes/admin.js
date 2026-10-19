@@ -1329,7 +1329,7 @@ router.post("/workers/:id/notify", auth, requireRole("admin"), async (req, res) 
     const notification = await createNotification({
       recipientId: req.params.id,
       type,
-      data: { title, message, link: "/notifications", sentBy: req.user._id },
+      data: { title, message, link: "/jobseeker-dashboard", sentBy: req.user._id },
       email: true,
     });
     if (!notification) return res.status(500).json({ message: "Could not send notification" });
