@@ -9,6 +9,7 @@ const User = require("../models/User");
 const TeamInvitation = require("../models/TeamInvitation");
 const sendEmail = require("../utils/sendEmail");
 const { sendWelcomeEmail } = require("../services/emailService");
+const { normalisePhone } = require("../utils/sendSms");
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -178,11 +179,20 @@ router.post(
         companyType,
         companyName,
         organizationType,
+        phone,
       } = req.body;
 
       if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
         return res.status(400).json({
           message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        });
+      }
+
+      const isProfessional = !invitationToken && (role || "jobseeker") === "jobseeker";
+      const e164Phone = isProfessional ? normalisePhone(phone) : null;
+      if (isProfessional && !e164Phone) {
+        return res.status(400).json({
+          message: "A valid phone number is required so clients can reach you on WhatsApp.",
         });
       }
 
@@ -243,6 +253,8 @@ router.post(
             hashedPassword,
 
           role: invitation ? "employer" : (role || "jobseeker"),
+
+          ...(e164Phone && { phone: e164Phone }),
 
           isVerified:
             false,
