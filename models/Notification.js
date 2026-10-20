@@ -23,6 +23,7 @@ const notificationSchema = new mongoose.Schema(
         "review_received",
         "admin_request",
         "profile_shared",
+        "profile_incomplete",
       ],
       required: true,
       index: true,

@@ -281,6 +281,16 @@ resumeData: {
         default: false,
       },
 
+      profileReminderCount: {
+        type: Number,
+        default: 0,
+      },
+
+      profileReminderLastAt: {
+        type: Date,
+        default: null,
+      },
+
       emailVerificationToken: {
         type: String,
       },

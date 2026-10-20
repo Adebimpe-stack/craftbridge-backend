@@ -3,6 +3,12 @@ const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
 const { isPubliclyEligible } = require("../utils/professionalRanking");
 
+const joinLabels = (labels = []) => {
+  const words = labels.map((l) => String(l).replace(/^Missing /, "").toLowerCase());
+  if (words.length <= 1) return words[0] || "details";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+};
+
 const NOTIFICATION_MESSAGES = {
   service_request: (data) => ({
     title: "New Service Request",
@@ -39,6 +45,10 @@ const NOTIFICATION_MESSAGES = {
   profile_shared: (data) => ({
     title: data.title || "Your profile was shared with a client",
     message: data.message || "CraftBridge shared your profile with a client who needs your trade. Keep your phone on so you don't miss their call.",
+  }),
+  profile_incomplete: (data) => ({
+    title: "Your profile is hidden from clients",
+    message: `Clients can't find you on CraftBridge yet. Add your ${joinLabels(data.missing)} to go live.${data.certificationsTip ? " Adding your certifications also helps you stand out." : ""}`,
   }),
   job_application: (data) => ({
     title: "New Job Application",
