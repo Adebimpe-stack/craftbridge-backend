@@ -22,7 +22,7 @@ const {
   notifyProfileVisible,
 } = require("../services/notificationService");
 const sendEmail = require("../utils/sendEmail");
-const { getStorefront, listStorefronts } = require("../services/storefrontService");
+const { getStorefront, listStorefronts, getStorefrontActivity } = require("../services/storefrontService");
 const { whatsappLink } = require("../utils/localSeo");
 const { normalisePhone } = require("../utils/sendSms");
 
@@ -1309,6 +1309,19 @@ router.get("/workers/:id/storefront", auth, requireRole("admin"), async (req, re
     const storefront = await getStorefront(req.params.id);
     if (!storefront) return res.status(404).json({ message: "Worker not found" });
     res.json(storefront);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/workers/:id/storefront/activity", auth, requireRole("admin"), async (req, res) => {
+  try {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+      return res.status(404).json({ message: "Worker not found" });
+    }
+    const activity = await getStorefrontActivity(req.params.id);
+    if (!activity) return res.status(404).json({ message: "Worker not found" });
+    res.json(activity);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

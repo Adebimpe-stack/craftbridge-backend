@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const OutboundClick = require("../models/OutboundClick");
 const ProfileView = require("../models/ProfileView");
+const Review = require("../models/Review");
 const { getProfileViewAnalytics } = require("./profileViewService");
 const {
   isPubliclyEligible,
@@ -113,4 +114,97 @@ async function listStorefronts() {
     );
 }
 
-module.exports = { getStorefront, listStorefronts };
+const ACTIVITY_LIMIT = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Admin-only detail behind a storefront's numbers: who viewed, who made
+// contact and what they said. IPs and user agents are deliberately left out.
+async function getStorefrontActivity(userId) {
+  const user = await User.findById(userId).select("role").lean();
+  if (!user || user.role !== "jobseeker") return null;
+
+  const professional = user._id;
+  const since30 = new Date(Date.now() - THIRTY_DAYS_MS);
+  const [viewsByType, viewsByDay, recentViews, contactsByType, recentContacts, reviews] = await Promise.all([
+    ProfileView.aggregate([
+      { $match: { professional } },
+      { $group: { _id: "$viewerType", count: { $sum: 1 } } },
+    ]),
+    ProfileView.aggregate([
+      { $match: { professional, createdAt: { $gte: since30 } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Africa/Lagos" } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    ProfileView.find({ professional })
+      .sort({ createdAt: -1 })
+      .limit(ACTIVITY_LIMIT)
+      .populate("viewer", "name")
+      .select("viewerType viewer source createdAt")
+      .lean(),
+    OutboundClick.aggregate([
+      { $match: { artisan: professional } },
+      {
+        $group: {
+          _id: "$type",
+          total: { $sum: 1 },
+          last30Days: { $sum: { $cond: [{ $gte: ["$createdAt", since30] }, 1, 0] } },
+        },
+      },
+    ]),
+    OutboundClick.find({ artisan: professional })
+      .sort({ createdAt: -1 })
+      .limit(ACTIVITY_LIMIT)
+      .select("type clientName clientPhone refCode targetLocationPage createdAt")
+      .lean(),
+    Review.find({ professional })
+      .sort({ createdAt: -1 })
+      .limit(ACTIVITY_LIMIT)
+      .select("clientName rating hired comment status refCode createdAt")
+      .lean(),
+  ]);
+
+  const contactCount = (type, field) => contactsByType.find((row) => row._id === type)?.[field] || 0;
+  const viewsPerDay = new Map(viewsByDay.map((row) => [row._id, row.count]));
+  const last30 = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date(Date.now() - (29 - i) * DAY_MS).toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
+    return { date, count: viewsPerDay.get(date) || 0 };
+  });
+
+  return {
+    views: {
+      total: viewsByType.reduce((sum, row) => sum + row.count, 0),
+      byViewerType: Object.fromEntries(viewsByType.map((row) => [row._id || "guest", row.count])),
+      last30Days: last30,
+      recent: recentViews.map((v) => ({
+        at: v.createdAt,
+        viewerType: v.viewerType,
+        viewerName: v.viewer?.name || "",
+        source: v.source,
+      })),
+    },
+    contacts: {
+      whatsapp: { total: contactCount("whatsapp_click", "total"), last30Days: contactCount("whatsapp_click", "last30Days") },
+      calls: { total: contactCount("phone_call_click", "total"), last30Days: contactCount("phone_call_click", "last30Days") },
+      recent: recentContacts.map((c) => ({
+        at: c.createdAt,
+        method: c.type === "phone_call_click" ? "call" : "whatsapp",
+        clientName: c.clientName,
+        clientPhone: c.clientPhone,
+        refCode: c.refCode || "",
+        page: c.targetLocationPage,
+      })),
+    },
+    reviews: reviews.map((r) => ({
+      _id: r._id,
+      at: r.createdAt,
+      clientName: r.clientName,
+      rating: r.rating,
+      hired: r.hired,
+      comment: r.comment,
+      status: r.status,
+      refCode: r.refCode,
+    })),
+  };
+}
+
+module.exports = { getStorefront, listStorefronts, getStorefrontActivity };
