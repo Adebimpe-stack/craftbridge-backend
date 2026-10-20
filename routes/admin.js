@@ -22,7 +22,7 @@ const {
   notifyProfileVisible,
 } = require("../services/notificationService");
 const sendEmail = require("../utils/sendEmail");
-const { getStorefront } = require("../services/storefrontService");
+const { getStorefront, listStorefronts } = require("../services/storefrontService");
 const { whatsappLink } = require("../utils/localSeo");
 const { normalisePhone } = require("../utils/sendSms");
 
@@ -1282,6 +1282,17 @@ router.put("/workers/:id/verify", auth, requireRole("admin"), async (req, res) =
     }
 
     res.json({ message: `Worker ${status} successfully` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =======================
+// STOREFRONT DIRECTORY (ALL PROFESSIONALS)
+// =======================
+router.get("/storefronts", auth, requireRole("admin"), async (req, res) => {
+  try {
+    res.json({ storefronts: await listStorefronts() });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
