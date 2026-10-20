@@ -24,6 +24,7 @@ const {
 const sendEmail = require("../utils/sendEmail");
 const { getStorefront } = require("../services/storefrontService");
 const { whatsappLink } = require("../utils/localSeo");
+const { normalisePhone } = require("../utils/sendSms");
 
 let bulkEmailJobRunning = false;
 
@@ -1452,8 +1453,8 @@ router.put(
 
       if (key === "email") {
         value = String(value).trim().toLowerCase();
-        if (!value) {
-          return res.status(400).json({ message: "Email cannot be empty" });
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return res.status(400).json({ message: "Please provide a valid email address" });
         }
         const existingUser = await User.findOne({
           email: value,
@@ -1465,9 +1466,8 @@ router.put(
       }
 
       if (key === "phone") {
-        value = String(value).trim();
-        const digits = value.replace(/\D/g, "");
-        if (digits.length < 7 || digits.length > 15) {
+        value = normalisePhone(value);
+        if (!value) {
           return res.status(400).json({ message: "Please provide a valid phone number" });
         }
       }
