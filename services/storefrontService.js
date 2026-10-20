@@ -7,7 +7,7 @@ const {
 } = require("../utils/professionalRanking");
 
 const STOREFRONT_FIELDS =
-  "name role headline primaryTrade city state country location profilePicture portfolio experienceYears availability certifiedBy workerVerificationStatus isVerified ratingAverage ratingCount createdAt";
+  "name role headline primaryTrade city state country location profilePicture portfolio experienceYears availability certifications certifiedBy workerVerificationStatus isVerified ratingAverage ratingCount createdAt";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -48,6 +48,11 @@ async function getStorefront(userId) {
     },
     live: isPubliclyEligible(user),
     missing: getPublicDirectoryIneligibilityReasons(user),
+    tips: [
+      ...(!user.certifications?.length && !user.certifiedBy?.length
+        ? ["Add your certifications to stand out"]
+        : []),
+    ],
     stats: {
       viewsTotal: views.total,
       viewsThisWeek: views.thisWeek,

@@ -77,6 +77,9 @@ const tradeTestInterestRoutes =
 const { startDirectorySeoCron } =
   require("./services/directorySeoService");
 
+const { startProfileReminderCron } =
+  require("./services/profileReminderService");
+
 const employerRoutes =
   require("./routes/employer");
 
@@ -343,4 +346,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   // Nightly sweep that pushes newly populated trade/location pages to Google.
   startDirectorySeoCron();
+  startProfileReminderCron();
 });
