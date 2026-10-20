@@ -1438,7 +1438,8 @@ router.put(
     }
 
     const allowedFields = [
-      "name", "firstName", "lastName", "headline", "primaryTrade", "category", "skills", "experienceYears",
+      "name", "firstName", "lastName", "email", "phone",
+      "headline", "primaryTrade", "category", "skills", "experienceYears",
       "availability", "bio", "city", "state", "country", "location", "resumeUrl",
       "website", "linkedin", "github", "certifications", "languages", "profilePicture"
     ];
@@ -1448,6 +1449,28 @@ router.put(
       if (req.body[key] === undefined) continue;
 
       let value = req.body[key];
+
+      if (key === "email") {
+        value = String(value).trim().toLowerCase();
+        if (!value) {
+          return res.status(400).json({ message: "Email cannot be empty" });
+        }
+        const existingUser = await User.findOne({
+          email: value,
+          _id: { $ne: user._id },
+        });
+        if (existingUser) {
+          return res.status(409).json({ message: "Email already in use" });
+        }
+      }
+
+      if (key === "phone") {
+        value = String(value).trim();
+        const digits = value.replace(/\D/g, "");
+        if (digits.length < 7 || digits.length > 15) {
+          return res.status(400).json({ message: "Please provide a valid phone number" });
+        }
+      }
 
       if (["skills", "certifications", "languages"].includes(key)) {
         if (typeof value === "string") {
